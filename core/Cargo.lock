@@ -1335,6 +1335,7 @@ dependencies = [
 name = "oracle-spot-amount"
 version = "0.1.0"
 dependencies = [
+ "num-rational",
  "serde",
 ]
 

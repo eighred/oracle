@@ -6,4 +6,5 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+num-rational = "0.4"
 serde = { version = "1", features = ["derive"] }

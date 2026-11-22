@@ -7,6 +7,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 const PUBLIC_API: &str = "https://data-api.binance.vision/api/v3";
 const MINUTE: u64 = 60_000;
+pub mod spot;
 
 fn utc_ms() -> Result<u64, &'static str> {
     SystemTime::now()
