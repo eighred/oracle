@@ -105,6 +105,8 @@ Research workers consume a versioned immutable extract with a schema and digest.
 
 Use the owner's Eighred palette across the workstation and chart legends. The [shared color tokens](../../web/src/style.css) record the flat sRGB colors sampled from the approved visual reference. Preserve the black ground, white and gray text, and pink, blue, teal, green and orange accents. Pair colored data series with names, line treatments and readable settlement values.
 
+Follow the Codex desktop layout for navigation. Keep one selected workspace in the center, collapse the sidebar to icons on desktop, and open it as a drawer on mobile. Show posting details and report provenance on demand. Use the verified OpenAI Apps SDK UI glyphs documented in the [web workstation](../../web/README.md) and retain Oracle's own product mark.
+
 The primary route is portfolio selection → dated overview → risk run → strategy comparison → fill, price and posting detail. Keep the selected portfolio, as-of time, base currency, benchmark and data-quality state visible as the operator drills down. A stale timestamp remains visible after reconnection until gaps are reconciled. Distinguish a zero position, a pending calculation, an incomplete result and a denied request. Provide table equivalents for visual information, keyboard navigation, focus restoration, reduced motion and a narrow-screen layout.
 
 | Read surface | Minimum request and response | Test through the actual browser |

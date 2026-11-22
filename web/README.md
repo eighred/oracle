@@ -1,6 +1,12 @@
 # Oracle portfolio workstation
 
-The Vue 3 client reads one authorized Eighred portfolio from the [report API](../core/crates/report_api/README.md). Opening holdings, one-day risk, strategy returns, drawdown and all ledger amounts come from the published Rust report. Choose a strategy to inspect its settlements, then choose a minute for the modeled fill, fees, cash posting, and realized and unrealized P&L. Expand report provenance to download the exact revision. The canvas renders account values; the ledger provides the values by timestamp. Times are UTC and the historical source is labeled on the page.
+The Vue 3 client reads one authorized Eighred portfolio from the [report API](../core/crates/report_api/README.md). Portfolio review shows opening holdings, one-day risk and minute-close account values. Open Strategy comparison to compare net returns and drawdown, then follow View settlements to the selected strategy’s ledger. Choose a minute to inspect its modeled fill, fees, cash posting, and realized and unrealized P&L. The toolbar’s Report provenance control opens the source digests and the immutable download. Times are UTC.
+
+## Workspace navigation and icons
+
+Each workspace has a direct URL fragment. Desktop navigation collapses to an icon rail. On small screens the same links open in a navigation drawer. Settlement and provenance dialogs support Escape and return keyboard focus to the invoking control.
+
+The [icon sprite](src/assets/openai-icons.svg) contains eleven glyphs from OpenAI’s MIT-licensed `@openai/apps-sdk-ui` 0.2.2. Each symbol preserves the published component’s viewBox, ordered paths and fill rules. The viewBox and every path’s drawing commands matched the installed Windows Codex 26.1111.2228.0 assets. The Vue client references the sprite directly. The distribution includes the [upstream license](public/licenses/openai-apps-sdk-ui.txt). [OpenAI Apps SDK UI source](https://github.com/openai/apps-sdk-ui) · [Versioned package](https://www.npmjs.com/package/@openai/apps-sdk-ui/v/0.2.2).
 
 ## Eighred palette
 
