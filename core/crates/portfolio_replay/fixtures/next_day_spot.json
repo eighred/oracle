@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "dataset_id": "oracle-synthetic-spot-outcomes-v1",
+  "venue": "synthetic",
+  "instrument_revision": "BTC-USDT-fixture-v1",
+  "base": "BTC",
+  "quote": "USDT",
+  "interval_ms": 60000,
+  "price_tick": "0.01",
+  "quantity_step": "0.00000001",
+  "portfolio": {
+    "id": "own-paper-01",
+    "effective_at_ms": 1767225600000,
+    "known_at_ms": 1767225600000,
+    "cash": "50.00",
+    "quantity": "2.00000000"
+  },
+  "bars": [
+    {"id":"next-day-close","open_ms":1767312000000,"received_ms":1767312060300,"open":"24.00","high":"25.00","low":"23.00","close":"23.50","volume":"7.00000000"},
+    {"id":"next-day-correction","open_ms":1767312000000,"received_ms":1767312180000,"open":"24.00","high":"25.00","low":"23.00","close":"24.00","volume":"7.00000000"}
+  ]
+}

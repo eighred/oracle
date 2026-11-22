@@ -3,8 +3,11 @@ use std::{env, fs::File, io::Read, process::ExitCode};
 
 fn run() -> Result<(), String> {
     let mut args = env::args().skip(1).peekable();
-    let usage = "usage: oracle-portfolio-replay [--risk-bps CONFIDENCE] VALID_AT_MS KNOWN_AT_MS [DATASET.json]";
-    let confidence = if args.next_if(|arg| arg == "--risk-bps").is_some() {
+    let usage = "usage: oracle-portfolio-replay [--risk-bps CONFIDENCE] VALID_AT_MS KNOWN_AT_MS [DATASET.json]\n       oracle-portfolio-replay --score-daily-risk-bps CONFIDENCE VALID_AT_MS SCORE_KNOWN_AT_MS [DATASET.json]";
+    let score_daily = args
+        .next_if(|arg| arg == "--score-daily-risk-bps")
+        .is_some();
+    let confidence = if score_daily || args.next_if(|arg| arg == "--risk-bps").is_some() {
         Some(
             args.next()
                 .ok_or(usage)?
@@ -39,8 +42,16 @@ fn run() -> Result<(), String> {
     } else {
         FIXTURE
     };
-    let snapshot = replay(bytes, valid, known)?;
+    let forecast_known = if score_daily {
+        risk::forecast::freeze_at(valid)?
+    } else {
+        known
+    };
+    let snapshot = replay(bytes, valid, forecast_known)?;
     let json = match confidence {
+        Some(bps) if score_daily => {
+            serde_json::to_string_pretty(&risk::forecast::score(&snapshot, bps, known)?)
+        }
         Some(bps) => serde_json::to_string_pretty(&risk::report(&snapshot, bps)?),
         None => serde_json::to_string_pretty(&snapshot),
     }
