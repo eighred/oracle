@@ -2,7 +2,15 @@
 use super::tails;
 use num_rational::BigRational as Number;
 use oracle_spot_amount::spot_decimal;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Copy, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SizeUnit {
+    #[default]
+    Base,
+    Quote,
+}
 
 pub struct Leg<'a> {
     pub quantity: &'a str,
@@ -35,6 +43,15 @@ pub fn evaluate(
     legs: &[Leg<'_>],
     confidence: u16,
 ) -> Result<(Summary, Vec<Contribution>), &'static str> {
+    evaluate_sized(cash, legs, confidence, SizeUnit::Base)
+}
+
+pub fn evaluate_sized(
+    cash: &str,
+    legs: &[Leg<'_>],
+    confidence: u16,
+    unit: SizeUnit,
+) -> Result<(Summary, Vec<Contribution>), &'static str> {
     let cash = spot_decimal(cash).ok_or("invalid cash")?;
     let count = legs.first().ok_or("missing positions")?.closes.len();
     if !(5..=100).contains(&count) || !(1..10_000).contains(&confidence) {
@@ -59,7 +76,10 @@ pub fn evaluate(
             })
             .collect::<Result<Vec<_>, _>>()?;
         let quantity = spot_decimal(leg.quantity).ok_or("invalid quantity")?;
-        let exposure = quantity * &prices[count - 1];
+        let exposure = match unit {
+            SizeUnit::Base => quantity * &prices[count - 1],
+            SizeUnit::Quote => quantity,
+        };
         for (loss, pair) in losses.iter_mut().zip(prices.windows(2)) {
             *loss += &exposure * (&pair[0] - &pair[1]) / &pair[0];
         }
@@ -92,6 +112,25 @@ pub fn evaluate(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn quote_allocations_reprice_the_same_hundred_unit_reference_basket() {
+        let marks = ["10", "11", "9", "12", "20"].map(String::from);
+        let quote = [Leg {
+            quantity: "100",
+            closes: &marks,
+            shock_bps: -1500,
+        }];
+        let base = [Leg {
+            quantity: "5",
+            closes: &marks,
+            shock_bps: -1500,
+        }];
+        let (a, _) = evaluate_sized("0", &quote, 6250, SizeUnit::Quote).unwrap();
+        let (b, _) = evaluate("0", &base, 6250).unwrap();
+        assert_eq!((a.nav.as_str(), a.stress_pnl.as_str()), ("100", "-15"));
+        assert_eq!(a.value_at_risk, b.value_at_risk);
+        assert_eq!(a.expected_shortfall, b.expected_shortfall);
+    }
     #[test]
     fn jointly_repriced_scenarios_and_opposing_stress_contributions() {
         let a = ["100", "90", "100", "90", "100"].map(String::from);

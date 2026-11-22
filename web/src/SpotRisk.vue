@@ -1,13 +1,24 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
 import { utc } from "./report";
-const props = defineProps<{ portfolio: string }>();
-const positions = ref([
-  { venue: "binance", pair: "BTC/USDT", quantity: "1", shock_bps: -1000 },
-]);
+const props = defineProps<{
+  portfolio: string;
+  basket?: { venue: string; pair: string; bps: number }[];
+}>();
+const positions = ref(
+  props.basket?.map((p) => ({
+    venue: p.venue,
+    pair: p.pair,
+    quantity: (p.bps / 100).toFixed(2),
+    shock_bps: -1000,
+  })) ?? [
+    { venue: "binance", pair: "BTC/USDT", quantity: "1", shock_bps: -1000 },
+  ],
+);
 const cash = ref("0"),
   closes = ref(60),
   confidence = ref(9500);
+const commentary = ref(false);
 const pending = ref(false),
   message = ref("");
 type Result = {
@@ -26,6 +37,7 @@ type Result = {
     sample_size: number;
     confidence_bps: number;
   };
+  advisory?: { state: string; model?: string; text?: string };
   positions: {
     venue: string;
     pair: string;
@@ -39,7 +51,7 @@ type Result = {
 };
 const result = ref<Result>();
 watch(
-  [positions, cash, closes, confidence],
+  [positions, cash, closes, confidence, commentary],
   () => {
     result.value = undefined;
     message.value = "";
@@ -55,8 +67,7 @@ function amount(value: string) {
     abs = num < 0n ? -num : num;
   const scale = 100000000n,
     digits = ((abs * scale + den / 2n) / den).toString().padStart(9, "0");
-  if (abs > 0n && abs * scale < den)
-    return value;
+  if (abs > 0n && abs * scale < den) return value;
   const decimal = digits.slice(-8).replace(/0+$/, "");
   return (
     (num < 0n ? "−" : "") + digits.slice(0, -8) + (decimal ? "." + decimal : "")
@@ -75,6 +86,8 @@ async function run() {
         cache: "no-store",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          size_unit: props.basket ? "quote" : "base",
+          commentary: commentary.value,
           cash: cash.value,
           confidence_bps: confidence.value,
           closes: closes.value,
@@ -134,10 +147,8 @@ async function run() {
             placeholder="BASE/QUOTE"
         /></label>
         <label
-          >Quantity<input
-            v-model.trim="p.quantity"
-            required
-            inputmode="decimal"
+          >{{ props.basket ? "Quote allocation" : "Quantity"
+          }}<input v-model.trim="p.quantity" required inputmode="decimal"
         /></label>
         <label
           >Shock (bps)<input
@@ -191,6 +202,10 @@ async function run() {
             max="9999"
         /></label>
       </div>
+      <label
+        ><input type="checkbox" v-model="commentary" />Include AI risk
+        commentary</label
+      >
       <button type="submit">
         {{ pending ? "Reading market data…" : "Calculate risk" }}
       </button>
@@ -221,6 +236,19 @@ async function run() {
         <dd :title="value">{{ amount(value) }} {{ result.quote }}</dd></template
       >
     </dl>
+    <section v-if="result.advisory">
+      <h3>AI risk commentary</h3>
+      <p>
+        {{
+          result.advisory.state === "available"
+            ? result.advisory.text
+            : result.advisory.state === "unconfigured"
+              ? "LiteLLM is not configured."
+              : "Risk commentary is unavailable."
+        }}
+      </p>
+      <small v-if="result.advisory.model">{{ result.advisory.model }}</small>
+    </section>
     <details v-for="p in result.positions" :key="p.venue + p.pair">
       <summary>{{ p.venue }} · {{ p.pair }}</summary>
       <p>

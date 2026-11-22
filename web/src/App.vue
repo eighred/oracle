@@ -4,6 +4,20 @@ import Icon from "./Icon.vue";
 import EquityChart from "./EquityChart.vue";
 import PaperReview from "./PaperReview.vue";
 import SpotRisk from "./SpotRisk.vue";
+import Baskets from "./Baskets.vue";
+import Discover from "./Discover.vue";
+import PlatformSettings from "./PlatformSettings.vue";
+const selectedItems = ref<{ venue: string; pair: string; bps: number }[]>();
+const newPair = ref<string>();
+const basketPage = ref(0);
+function basketRisk(items: { venue: string; pair: string; bps: number }[]) {
+  selectedItems.value = items;
+  location.hash = "spot-risk";
+}
+function newBasket(pair: string) {
+  newPair.value = pair;
+  location.hash = "baskets";
+}
 import {
   clock,
   colors,
@@ -35,12 +49,17 @@ const views = [
   { id: "overview", title: "Portfolio review", icon: "Chart" },
   { id: "strategies", title: "Strategy comparison", icon: "Compare" },
   { id: "ledger", title: "Settlement ledger", icon: "Notebook" },
+  { id: "settings", title: "Platform settings", icon: "Folder" },
+  { id: "discover", title: "Discover markets", icon: "Chart" },
+  { id: "baskets", title: "Baskets", icon: "Folder" },
   { id: "spot-risk", title: "Spot portfolio risk", icon: "Chart" },
   { id: "paper", title: "Paper outcomes", icon: "Clock" },
 ] as const;
 function currentView() {
   return (
-    views.find((item) => "#" + item.id === window.location.hash) ?? views[0]
+    views.find(
+      (item) => "#" + item.id === window.location.hash.split("?")[0],
+    ) ?? views[0]
   );
 }
 const view = ref(currentView());
@@ -53,11 +72,16 @@ const heading = ref<HTMLHeadingElement>();
 const paperReview = ref<InstanceType<typeof PaperReview>>();
 const inspection = ref<"posting" | "provenance">("provenance");
 function navigate() {
+  if (view.value.id === "spot-risk") selectedItems.value = undefined;
+  if (view.value.id === "baskets") newPair.value = undefined;
+  basketPage.value++;
   view.value = currentView();
   mobileMenu.value?.close();
   inspector.value?.close();
   if (
-    !["paper", "spot-risk"].includes(view.value.id) &&
+    !["paper", "spot-risk", "discover", "baskets", "settings"].includes(
+      view.value.id,
+    ) &&
     !data.value &&
     !pending.value
   )
@@ -128,7 +152,12 @@ async function refresh() {
 onMounted(() => {
   window.addEventListener("hashchange", navigate);
   breakpoint.addEventListener("change", resize);
-  if (!["paper", "spot-risk"].includes(view.value.id)) refresh();
+  if (
+    !["paper", "spot-risk", "discover", "baskets", "settings"].includes(
+      view.value.id,
+    )
+  )
+    refresh();
 });
 onBeforeUnmount(() => {
   window.removeEventListener("hashchange", navigate);
@@ -197,7 +226,12 @@ onBeforeUnmount(() => {
         <Icon name="ChevronRightMd" /><span class="current">{{
           view.title
         }}</span>
-        <div v-if="view.id !== 'spot-risk'" class="actions">
+        <div
+          v-if="
+            !['spot-risk', 'baskets', 'discover', 'settings'].includes(view.id)
+          "
+          class="actions"
+        >
           <button
             class="tool"
             title="Refresh report"
@@ -222,7 +256,19 @@ onBeforeUnmount(() => {
       </header>
       <main id="workstation">
         <h1 ref="heading" tabindex="-1">{{ view.title }}</h1>
-        <SpotRisk v-if="view.id === 'spot-risk'" :portfolio="portfolio" />
+        <PlatformSettings v-if="view.id === 'settings'" />
+        <Discover v-else-if="view.id === 'discover'" @basket="newBasket" />
+        <Baskets
+          v-else-if="view.id === 'baskets'"
+          :key="basketPage"
+          :initial-pair="newPair"
+          @risk="basketRisk"
+        />
+        <SpotRisk
+          v-else-if="view.id === 'spot-risk'"
+          :portfolio="portfolio"
+          :basket="selectedItems"
+        />
         <PaperReview
           v-else-if="view.id === 'paper'"
           ref="paperReview"

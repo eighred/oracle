@@ -69,6 +69,8 @@ def main():
     parser.add_argument("--api-bin", type=Path, required=True)
     parser.add_argument("--dist", type=Path, required=True)
     parser.add_argument("--port", type=int, default=8040)
+    parser.add_argument("--basket-curator", action="store_true", help="allow the local operator to pin official basket templates")
+    parser.add_argument("--platform-admin", action="store_true", help="allow the local operator to manage simulated company settings")
     sources = parser.add_mutually_exclusive_group()
     sources.add_argument("--observe-paper", action="store_true",
                         help="freeze a nine-minute synthetic experiment and publish its observed outcome")
@@ -95,6 +97,12 @@ def main():
             sql(migration.read_text())
             sql(migration.with_name("002_paper.sql").read_text())
             sql(migration.with_name("003_source_scopes.sql").read_text())
+            sql(migration.with_name("004_baskets.sql").read_text())
+            sql(migration.with_name("005_platform_admin.sql").read_text())
+            if args.platform_admin or args.check is not None:
+                sql("INSERT INTO oracle_admin.administrators VALUES ('operator')")
+            if args.basket_curator or args.check is not None:
+                sql("INSERT INTO oracle_social.curators VALUES ('operator')")
             password = (secrets.token_hex(32) if args.check is not None
                         else getpass("Choose a temporary operator passphrase (16–256 UTF-8 bytes): "))
             if not 16 <= len(password.encode()) <= 256:
@@ -217,6 +225,8 @@ def main():
                 if args.check:
                     subprocess.run(args.check, check=True, env={**os.environ,"ORACLE_TEST_ORIGIN":origin,
                                    "ORACLE_TEST_PASSWORD":password, "ORACLE_DENIED_PASSWORD":denied})
+                basket_catalogs = {user: fetch(origin+"/api/baskets",user+":"+token) for user,token in (("operator",password),("observer",denied))}
+                assert all(result[0] == 200 for result in basket_catalogs.values())
             # Restore the database to a second database on the isolated cluster.
             # Global roles stay in the cluster. Read the restored bytes through a fresh API connection.
             backup = stage/"pilot.dump"
@@ -225,6 +235,8 @@ def main():
             subprocess.run([pg/"createdb",*common,"restored"],check=True)
             subprocess.run([pg/"pg_restore",*common,"--exit-on-error","-d","restored",backup],check=True)
             with api_server(args.api_bin,args.dist,database_env("pilot_reader","restored"),0) as restored:
+                for user,token in (("operator",password),("observer",denied)):
+                    assert fetch(restored+"/api/baskets",user+":"+token) == basket_catalogs[user]
                 route = "/api/portfolios/own-paper-01/reports/" + revision
                 assert fetch(restored+route,"operator:"+password) == (200,revision,original)
                 assert fetch(restored+route,"observer:"+denied)[0] == 403
