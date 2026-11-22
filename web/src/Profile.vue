@@ -34,7 +34,7 @@ type Entry = {
     fees: string;
     spread?: string;
     fills: {
-      venue: string;
+      venue?: string;
       pair: string;
       side: string;
       quantity: string;
@@ -376,10 +376,11 @@ onBeforeUnmount(() => {
           </p>
           <p
             v-for="f in e.receipt.fills.filter((f) => f.quantity !== '0')"
-            :key="f.venue + f.pair"
+            :key="(f.venue ?? '') + f.pair"
           >
             {{ f.side }} {{ f.quantity }} {{ f.pair }} at {{ f.price }} ·
-            {{ f.venue }} · Fee {{ f.fee }} {{ e.currency }}
+            <template v-if="f.venue">{{ f.venue }} · </template>
+            Fee {{ f.fee }} {{ e.currency }}
           </p>
         </details>
       </article>

@@ -84,7 +84,7 @@ export async function initializeAccount() {
 }
 export async function memberLogin(register = false) {
   if (native) return nativeLogin(register);
-  if (location.hash.startsWith("#") && location.hash.length<=512)
+  if (location.hash.startsWith("#") && location.hash.length <= 512)
     sessionStorage.setItem("oracle.return", location.hash);
   if (!provider) return;
   if (register) await provider.register();

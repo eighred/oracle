@@ -235,6 +235,7 @@ test("only an administrator stages connections and appends future fee proposals"
       ).json()
     ).connections[0].enabled,
   ).toBe(false);
+  expect((await send({ ...data, request: randomUUID() })).ok()).toBe(true);
   const fee = {
     op: "fee",
     request: randomUUID(),

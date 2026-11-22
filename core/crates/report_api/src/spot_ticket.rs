@@ -107,5 +107,9 @@ async fn apply(db: Database, headers: &HeaderMap, input: Instruction) -> Result<
         }
     }.map_err(social::failure)?.get(0);
     tx.commit().await.map_err(social::failure)?;
-    serde_json::from_str(&raw).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+    let mut receipt: serde_json::Map<String, Value> =
+        serde_json::from_str(&raw).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    receipt.remove("venue");
+    receipt.remove("venuePrice");
+    Ok(Value::Object(receipt))
 }

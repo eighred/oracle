@@ -46,6 +46,8 @@ jobs:
           python3 ../core/crates/report_api/tools/local_pilot.py \
             --pg-bin "$pg_bin" --api-bin ../core/target/debug/oracle-report-api \
             --dist dist --port 0 --check npm run test:browser
+          python3 ../core/crates/report_api/tests/member_restart.py \
+            --pg-bin "$pg_bin" --api-bin ../core/target/debug/oracle-report-api --dist dist
       - name: Verify member email and authenticator registration
         working-directory: web
         env:

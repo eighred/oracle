@@ -10,8 +10,6 @@ type Quote = {
   side: string;
   quantity: string;
   price: string;
-  venuePrice: string;
-  venue: string;
   fee: string;
   spread: string;
   total: string;
@@ -122,8 +120,6 @@ async function send(confirm = false) {
       <dl>
         <dt>Customer price</dt>
         <dd>{{ ticket.price }} {{ ticket.currency }}</dd>
-        <dt>Venue fill · {{ ticket.venue }}</dt>
-        <dd>{{ ticket.venuePrice }} {{ ticket.currency }}</dd>
         <dt>Modeled venue fee · 10 bps</dt>
         <dd>{{ ticket.fee }} {{ ticket.currency }}</dd>
         <dt>Eighred spread included in price</dt>

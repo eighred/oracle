@@ -237,7 +237,26 @@ pub(super) async fn profile(
             .map_err(failure)?
             .get(0);
         tx.commit().await.map_err(failure)?;
-        serde_json::from_str(&raw).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+        let mut profile: Value =
+            serde_json::from_str(&raw).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        if let Some(events) = profile["activity"].as_array_mut() {
+            for entry in events {
+                if let Some(fills) = entry["receipt"]
+                    .get_mut("fills")
+                    .and_then(Value::as_array_mut)
+                {
+                    for fill in fills {
+                        if let Some(row) = fill.as_object_mut()
+                            && let Some(price) = row.remove("customerPrice")
+                        {
+                            row.insert("price".into(), price);
+                            row.remove("venue");
+                        }
+                    }
+                }
+            }
+        }
+        Ok(profile)
     }
     .await;
     response("paper_profile_v1", &headers, result)

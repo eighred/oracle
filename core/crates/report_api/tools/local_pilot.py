@@ -103,6 +103,7 @@ def main():
             sql(migration.with_name("007_member_identity.sql").read_text())
             sql(migration.with_name("008_spot_tickets.sql").read_text())
             sql(migration.with_name("009_community.sql").read_text())
+            sql(migration.with_name("010_basket_venue_policy.sql").read_text())
             if args.check is not None:
                 sql((migration.parents[1] / "tests/spot_ticket.sql").read_text())
             if args.platform_admin or args.check is not None:

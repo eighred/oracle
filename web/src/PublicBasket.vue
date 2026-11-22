@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import { apiFetch, memberLogin, accountReady } from "./api";
-const invited=new URLSearchParams(location.hash.split("?")[1]).has("share");
+const invited = new URLSearchParams(location.hash.split("?")[1]).has("share");
 const selection = new URLSearchParams(location.hash.split("?")[1]).get("id");
 type Basket = {
   id: string;
@@ -14,7 +14,10 @@ type Basket = {
 const rows = ref<Basket[]>([]),
   message = ref("Loading public baskets…");
 onMounted(async () => {
-  if(invited){message.value="Sign in to open this private invitation.";return;}
+  if (invited) {
+    message.value = "Sign in to open this private invitation.";
+    return;
+  }
   try {
     const res = await apiFetch(
       "/api/discover/baskets" +

@@ -215,9 +215,7 @@ async function action(op: string, extra: Record<string, unknown> = {}) {
     }
     if (op === "link") {
       share.value =
-        shareBase() +
-        "#baskets?share=" +
-        encodeURIComponent(r.token);
+        shareBase() + "#baskets?share=" + encodeURIComponent(r.token);
     }
     if (op === "unlink") share.value = "";
     if (op === "unlock") {
