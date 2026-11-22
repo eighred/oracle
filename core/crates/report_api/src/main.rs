@@ -1,4 +1,5 @@
 mod paper;
+mod spot;
 use axum::{
     Router,
     extract::{Path, State},
@@ -84,21 +85,12 @@ fn identity(headers: &HeaderMap) -> Option<(String, String)> {
     Some((user.to_owned(), token.to_owned()))
 }
 
-async fn lookup(
-    db: &Database,
+async fn authorize(
+    tx: &tokio_postgres::Transaction<'_>,
     resource: &str,
-    kind: &str,
-    version: &str,
     login: (String, String),
-) -> Result<(String, Vec<u8>), StatusCode> {
+) -> Result<(), StatusCode> {
     let failed = |_| StatusCode::SERVICE_UNAVAILABLE;
-    let mut client = db.lock().await;
-    let tx = client
-        .build_transaction()
-        .read_only(true)
-        .start()
-        .await
-        .map_err(failed)?;
     let salt: Option<Vec<u8>> = tx
         .query_one("SELECT oracle_read.login_salt($1)", &[&login.0])
         .await
@@ -150,6 +142,25 @@ async fn lookup(
     if !allowed {
         return Err(StatusCode::FORBIDDEN);
     }
+    Ok(())
+}
+
+async fn lookup(
+    db: &Database,
+    resource: &str,
+    kind: &str,
+    version: &str,
+    login: (String, String),
+) -> Result<(String, Vec<u8>), StatusCode> {
+    let failed = |_| StatusCode::SERVICE_UNAVAILABLE;
+    let mut client = db.lock().await;
+    let tx = client
+        .build_transaction()
+        .read_only(true)
+        .start()
+        .await
+        .map_err(failed)?;
+    authorize(&tx, resource, login).await?;
     let row = tx.query_opt("SELECT report_id,payload FROM oracle_read.reports WHERE portfolio=$1 AND ($2='latest' OR report_id=$2)
         AND kind=$3 ORDER BY published_at DESC,report_id LIMIT 1",&[&resource,&version,&kind]).await.map_err(failed)?.ok_or(StatusCode::NOT_FOUND)?;
     let id: String = row.get(0);
@@ -203,6 +214,7 @@ async fn report(
 async fn run() -> Result<(), &'static str> {
     let args: Vec<_> = env::args().skip(1).collect();
     match args.as_slice() {
+        [cmd] if cmd == "spot-risk" => spot::cli().await,
         [cmd, rest @ ..] if cmd == "paper" => paper::command(&mut connect().await?, rest).await,
         [cmd] if cmd == "publish-synthetic" => publish(&connect().await?).await,
         [cmd, dist] if cmd == "serve" => {
@@ -221,6 +233,11 @@ async fn run() -> Result<(), &'static str> {
                 .route(
                     "/api/portfolios/{portfolio}/{collection}/{version}",
                     get(report),
+                )
+                .route(
+                    "/api/portfolios/{portfolio}/spot-risk",
+                    axum::routing::post(spot::handle)
+                        .layer(axum::extract::DefaultBodyLimit::max(16_384)),
                 )
                 .with_state(Arc::new(Mutex::new(client)))
                 .fallback_service(ServeDir::new(dist));
@@ -245,9 +262,12 @@ async fn run() -> Result<(), &'static str> {
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> ExitCode {
-    if env::args().nth(1).as_deref() == Some("paper") {
+    if matches!(
+        env::args().nth(1).as_deref(),
+        Some("paper" | "serve" | "spot-risk")
+    ) {
         // CCXT translates venue exceptions after the panic hook runs. Keep bodies off the journal log.
-        std::panic::set_hook(Box::new(|_| eprintln!("paper runtime exception")));
+        std::panic::set_hook(Box::new(|_| eprintln!("Oracle runtime exception")));
     }
     match run().await {
         Ok(()) => ExitCode::SUCCESS,

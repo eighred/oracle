@@ -1,5 +1,27 @@
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error};
 
+/// Exact nonnegative venue decimal, including ticks smaller than one legacy ledger atom.
+pub fn spot_decimal(text: &str) -> Option<num_rational::BigRational> {
+    let (whole, fraction) = match text.split_once('.') {
+        Some((_, "")) => return None,
+        Some(parts) => parts,
+        None => (text, ""),
+    };
+    if whole.is_empty()
+        || text.len() > 64
+        || !whole
+            .bytes()
+            .chain(fraction.bytes())
+            .all(|b| b.is_ascii_digit())
+    {
+        return None;
+    }
+    Some(num_rational::BigRational::new(
+        format!("{whole}{fraction}").parse().ok()?,
+        format!("1{}", "0".repeat(fraction.len())).parse().ok()?,
+    ))
+}
+
 /// Nonnegative spot amounts with eight decimal places, represented as integer atoms.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Amount(u64);

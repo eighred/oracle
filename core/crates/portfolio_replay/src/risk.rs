@@ -4,6 +4,7 @@ use num_rational::BigRational;
 use oracle_spot_amount::Amount;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+pub mod basket;
 
 const HISTORY: &[u8] = include_bytes!("../fixtures/daily_risk_index.json");
 const DAY: u64 = 86_400_000;
