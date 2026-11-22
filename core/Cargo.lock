@@ -1319,6 +1319,7 @@ dependencies = [
  "axum",
  "base64 0.22.1",
  "oracle-backtest",
+ "oracle-market-data",
  "oracle-portfolio-replay",
  "oracle-spot-amount",
  "ring",

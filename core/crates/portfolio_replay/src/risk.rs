@@ -145,6 +145,34 @@ fn evaluate(snapshot: &Snapshot, history: &IndexHistory, confidence: u16) -> Cov
     }
 }
 
+/// One-minute historical revaluation of the ending long spot inventory.
+/// The paper journal verifies the cadence and knowledge times before calling.
+pub fn minute_tail(
+    marks: &[Amount],
+    quantity: Amount,
+    confidence: u16,
+) -> Option<(String, String)> {
+    if marks.len() <= MIN_SCENARIOS
+        || !(1..10_000).contains(&confidence)
+        || marks.contains(&Amount::ZERO)
+    {
+        return None;
+    }
+    let exposure = BigRational::new(
+        (u128::from(quantity.atoms()) * u128::from(marks.last()?.atoms())).into(),
+        (u128::from(Amount::ATOMS_PER_UNIT).pow(2)).into(),
+    );
+    let mut losses = marks
+        .windows(2)
+        .map(|pair| {
+            let previous = BigRational::from_integer(pair[0].atoms().into());
+            &exposure * (&previous - BigRational::from_integer(pair[1].atoms().into())) / previous
+        })
+        .collect::<Vec<_>>();
+    let (var, es) = tails(&mut losses, confidence);
+    Some((var.to_string(), es.to_string()))
+}
+
 pub fn report(snapshot: &Snapshot, confidence_bps: u16) -> Result<RiskReport<'_>, String> {
     if !(1..10_000).contains(&confidence_bps) {
         return Err("confidence must be 1 through 9999 basis points".into());
@@ -167,6 +195,21 @@ pub fn report(snapshot: &Snapshot, confidence_bps: u16) -> Result<RiskReport<'_>
 mod tests {
     use super::*;
     use crate::{FIXTURE, replay};
+
+    #[test]
+    fn minute_shocks_reprice_the_ending_inventory_with_fractional_tail_mass() {
+        let marks = ["20", "25", "30", "24", "24"].map(|s| Amount::parse(s).unwrap());
+        let inventory = Amount::parse("2").unwrap();
+        assert_eq!(
+            minute_tail(&marks, inventory, 6250),
+            Some(("0".into(), "32/5".into()))
+        );
+        assert_eq!(
+            minute_tail(&marks, Amount::ZERO, 6250),
+            Some(("0".into(), "0".into()))
+        );
+        assert!(minute_tail(&marks[..4], inventory, 6250).is_none());
+    }
 
     #[test]
     fn ties_and_gains_keep_their_probability_and_sign() {
