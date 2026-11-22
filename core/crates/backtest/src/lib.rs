@@ -1,5 +1,6 @@
 //! Replay a frozen minute-by-minute strategy and two baselines through one spot ledger.
 mod ledger;
+pub mod paper;
 
 use ledger::{COST, CostModel, Fill, Ledger, Side, ratio, show, units};
 use oracle_portfolio_replay::{FIXTURE, Snapshot, replay};

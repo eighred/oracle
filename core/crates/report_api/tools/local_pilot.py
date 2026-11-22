@@ -10,6 +10,7 @@ from pathlib import Path
 import secrets
 import subprocess
 import tempfile
+import time
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
@@ -67,6 +68,8 @@ def main():
     parser.add_argument("--api-bin", type=Path, required=True)
     parser.add_argument("--dist", type=Path, required=True)
     parser.add_argument("--port", type=int, default=8040)
+    parser.add_argument("--observe-paper", action="store_true",
+                        help="freeze a nine-minute synthetic experiment and publish its observed outcome")
     parser.add_argument("--check", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     os.umask(0o077)
@@ -86,6 +89,7 @@ def main():
                 subprocess.run([pg/"psql", "-Xq", "-v", "ON_ERROR_STOP=1", "-h", stage, "-U",
                                 "pilot_admin", "-d", "postgres"], input=statement, text=True, check=True)
             sql(migration.read_text())
+            sql(migration.with_name("002_paper.sql").read_text())
             password = (secrets.token_hex(32) if args.check is not None
                         else getpass("Choose a temporary operator passphrase (16–256 UTF-8 bytes): "))
             if not 16 <= len(password.encode()) <= 256:
@@ -97,6 +101,7 @@ def main():
                 return key
             sql("CREATE ROLE pilot_reader LOGIN IN ROLE oracle_report_reader;"
                 "CREATE ROLE pilot_writer LOGIN IN ROLE oracle_report_writer;"
+                "CREATE ROLE pilot_paper LOGIN IN ROLE oracle_paper_operator;"
                 "INSERT INTO oracle_read.portfolio_grants VALUES ('operator','own-paper-01')")
             key = session("operator", password)
             def database_env(user, database="postgres"):
@@ -105,6 +110,40 @@ def main():
                 return subprocess.check_output([args.api_bin, "publish-synthetic"],
                                                env=database_env("pilot_writer"), text=True).strip()
             revision = publish()
+            def paper(action, window, *indices, role="pilot_paper"):
+                raw = subprocess.check_output([args.api_bin, "paper", action, str(window), *map(str, indices)],
+                                              env=database_env(role), text=True)
+                return json.loads(raw)
+            paper_revision = None
+            if args.observe_paper or args.check is not None:
+                first = (time.time_ns() // 60_000_000_000 + 2) * 60_000
+                manifest = paper("freeze", first)
+                assert paper("freeze", first) == manifest
+                if args.observe_paper:
+                    print(f"Paper window frozen. First sample at {first} UTC milliseconds.", flush=True)
+                    for index in range(manifest["samples"]):
+                        due = (first + index * manifest["cadence_ms"]) / 1000 + 0.5
+                        time.sleep(max(0, due - time.time()))
+                        event = paper("sample", first, index)
+                        print(f"Paper sample {index}: {event['result']}", flush=True)
+                        if event["result"] == "missed":
+                            break
+                        if index == 4:
+                            if args.check is not None:
+                                subprocess.run([pg/"pg_ctl", "-D", data, "-m", "immediate", "-w", "stop"], check=True)
+                                subprocess.run([pg/"pg_ctl", "-D", data, "-l", stage/"postgres.log", "-o",
+                                                f"-c listen_addresses='' -k '{stage}'", "-w", "start"], check=True)
+                            assert paper("sample", first, index)["result"] == "already_recorded"
+                else:
+                    assert paper("cancel", first) == paper("cancel", first)
+                observed = paper("report", first)
+                if args.observe_paper and observed["state"] == "complete":
+                    audit = Path(__file__).resolve().parents[2]/"backtest/tests/paper_reference.py"
+                    export = stage/"paper.json"
+                    export.write_text(json.dumps(observed), encoding="utf-8")
+                    subprocess.run(["python3", audit, export], check=True)
+                paper_revision = paper("publish", first, role="pilot_writer")["report_id"]
+                assert paper("publish", first, role="pilot_writer")["report_id"] == paper_revision
             with api_server(args.api_bin, args.dist, database_env("pilot_reader"), args.port) as origin:
                 if args.check is None:
                     print(f"{origin} · sign in as operator with your temporary passphrase · press Enter to stop", flush=True)
@@ -124,7 +163,8 @@ def main():
                     SET LOCAL oracle.operator='operator';
                     SET LOCAL oracle.token_digest='{key}';
                     DO $$ BEGIN
-                        IF (SELECT count(*) FROM oracle_read.reports) <> 1 OR
+                        IF (SELECT count(*) FROM oracle_read.reports WHERE kind='historical') <> 1 OR
+                           has_schema_privilege(current_user,'oracle_paper','USAGE') OR
                            EXISTS(SELECT FROM oracle_read.reports WHERE portfolio='other-paper')
                         THEN RAISE EXCEPTION 'portfolio isolation failed'; END IF;
                     END $$;
@@ -136,6 +176,12 @@ def main():
                     END $$;
                 """)
                 original = check_projection(origin,password,denied,revision,sql)
+                paper_route = "/api/portfolios/own-paper-01/paper/"
+                paper_code, paper_id, paper_body = fetch(origin+paper_route+"latest","operator:"+password)
+                assert paper_code == 200 and paper_id == paper_revision == hashlib.sha256(paper_body).hexdigest()
+                assert json.loads(paper_body) == observed
+                assert fetch(origin+paper_route+paper_revision,"observer:"+denied)[0] == 403
+                assert fetch(origin+paper_route+revision,"operator:"+password)[0] == 404
                 if args.check:
                     subprocess.run(args.check, check=True, env={**os.environ,"ORACLE_TEST_ORIGIN":origin,
                                    "ORACLE_TEST_PASSWORD":password, "ORACLE_DENIED_PASSWORD":denied})
@@ -150,6 +196,7 @@ def main():
                 route = "/api/portfolios/own-paper-01/reports/" + revision
                 assert fetch(restored+route,"operator:"+password) == (200,revision,original)
                 assert fetch(restored+route,"observer:"+denied)[0] == 403
+                assert fetch(restored+paper_route+paper_revision,"operator:"+password) == (200,paper_revision,paper_body)
             print("Verified publication, scoped reads, revocation and restored report bytes.", flush=True)
         finally:
             subprocess.run([pg/"pg_ctl","-D",data,"-m","fast","-w","stop"],check=True)

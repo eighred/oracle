@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import Icon from "./Icon.vue";
 import EquityChart from "./EquityChart.vue";
+import PaperReview from "./PaperReview.vue";
 import {
   clock,
   colors,
@@ -33,6 +34,7 @@ const views = [
   { id: "overview", title: "Portfolio review", icon: "Chart" },
   { id: "strategies", title: "Strategy comparison", icon: "Compare" },
   { id: "ledger", title: "Settlement ledger", icon: "Notebook" },
+  { id: "paper", title: "Paper outcomes", icon: "Clock" },
 ] as const;
 function currentView() {
   return (
@@ -46,11 +48,13 @@ const narrow = ref(breakpoint.matches);
 const mobileMenu = ref<HTMLDialogElement>();
 const inspector = ref<HTMLDialogElement>();
 const heading = ref<HTMLHeadingElement>();
+const paperReview = ref<InstanceType<typeof PaperReview>>();
 const inspection = ref<"posting" | "provenance">("provenance");
 function navigate() {
   view.value = currentView();
   mobileMenu.value?.close();
   inspector.value?.close();
+  if (view.value.id !== "paper" && !data.value && !pending.value) refresh();
   nextTick(() => heading.value?.focus());
 }
 function resize() {
@@ -117,7 +121,7 @@ async function refresh() {
 onMounted(() => {
   window.addEventListener("hashchange", navigate);
   breakpoint.addEventListener("change", resize);
-  refresh();
+  if (view.value.id !== "paper") refresh();
 });
 onBeforeUnmount(() => {
   window.removeEventListener("hashchange", navigate);
@@ -191,14 +195,15 @@ onBeforeUnmount(() => {
             class="tool"
             title="Refresh report"
             aria-label="Refresh report"
-            :disabled="pending"
-            @click="refresh"
+            :disabled="view.id === 'paper' ? paperReview?.loading : pending"
+            @click="view.id === 'paper' ? paperReview?.refresh() : refresh()"
           >
             <Icon name="Regenerate" />
           </button>
           <button
             class="tool"
             title="Report provenance"
+            v-if="view.id !== 'paper'"
             aria-label="Report provenance"
             :disabled="!data"
             aria-haspopup="dialog"
@@ -210,8 +215,13 @@ onBeforeUnmount(() => {
       </header>
       <main id="workstation">
         <h1 ref="heading" tabindex="-1">{{ view.title }}</h1>
-        <p v-if="status" role="status" class="notice">{{ status }}</p>
-        <template v-if="data && snap && run && row">
+        <PaperReview
+          v-if="view.id === 'paper'"
+          ref="paperReview"
+          :portfolio="portfolio"
+        />
+        <p v-else-if="status" role="status" class="notice">{{ status }}</p>
+        <template v-else-if="data && snap && run && row">
           <p class="asof">
             <Icon name="Clock" />Archived synthetic snapshot <span>·</span
             ><time>{{ utc(snap.valid_at_ms) }}</time>

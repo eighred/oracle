@@ -1,3 +1,4 @@
+mod paper;
 use axum::{
     Router,
     extract::{Path, State},
@@ -81,6 +82,7 @@ fn identity(headers: &HeaderMap) -> Option<(String, String)> {
 async fn lookup(
     db: &Database,
     resource: &str,
+    kind: &str,
     version: &str,
     login: (String, String),
 ) -> Result<(String, Vec<u8>), StatusCode> {
@@ -144,7 +146,7 @@ async fn lookup(
         return Err(StatusCode::FORBIDDEN);
     }
     let row = tx.query_opt("SELECT report_id,payload FROM oracle_read.reports WHERE portfolio=$1 AND ($2='latest' OR report_id=$2)
-        ORDER BY published_at DESC,report_id LIMIT 1",&[&resource,&version]).await.map_err(failed)?.ok_or(StatusCode::NOT_FOUND)?;
+        AND kind=$3 ORDER BY published_at DESC,report_id LIMIT 1",&[&resource,&version,&kind]).await.map_err(failed)?.ok_or(StatusCode::NOT_FOUND)?;
     let id: String = row.get(0);
     let bytes: Vec<u8> = row.get(1);
     if digest(&bytes) != id {
@@ -156,11 +158,16 @@ async fn lookup(
 
 async fn report(
     State(db): State<Database>,
-    Path((portfolio, version)): Path<(String, String)>,
+    Path((portfolio, collection, version)): Path<(String, String, String)>,
     headers: HeaderMap,
 ) -> Response {
+    let kind = match collection.as_str() {
+        "reports" => "historical",
+        "paper" => "paper",
+        _ => return StatusCode::NOT_FOUND.into_response(),
+    };
     let result = match identity(&headers) {
-        Some(login) => lookup(&db, &portfolio, &version, login).await,
+        Some(login) => lookup(&db, &portfolio, kind, &version, login).await,
         None => Err(StatusCode::UNAUTHORIZED),
     };
     let mut response = match result {
@@ -191,6 +198,7 @@ async fn report(
 async fn run() -> Result<(), &'static str> {
     let args: Vec<_> = env::args().skip(1).collect();
     match args.as_slice() {
+        [cmd, rest @ ..] if cmd == "paper" => paper::command(&mut connect().await?, rest).await,
         [cmd] if cmd == "publish-synthetic" => publish(&connect().await?).await,
         [cmd, dist] if cmd == "serve" => {
             if !std::path::Path::new(dist).join("index.html").is_file() {
@@ -199,12 +207,16 @@ async fn run() -> Result<(), &'static str> {
             let client = connect().await?;
             let role=client.query_one("SELECT NOT rolsuper AND NOT rolbypassrls AND pg_has_role(current_user,'oracle_report_reader','member')
                 AND NOT pg_has_role(current_user,'oracle_report_writer','member')
+                AND NOT pg_has_role(current_user,'oracle_paper_operator','member')
                 FROM pg_roles WHERE rolname=current_user",&[]).await.map_err(|_|"reader role check failed")?;
             if !role.get::<_, bool>(0) {
                 return Err("serve requires a restricted report reader");
             }
             let app = Router::new()
-                .route("/api/portfolios/{portfolio}/reports/{version}", get(report))
+                .route(
+                    "/api/portfolios/{portfolio}/{collection}/{version}",
+                    get(report),
+                )
                 .with_state(Arc::new(Mutex::new(client)))
                 .fallback_service(ServeDir::new(dist));
             let port = env::var("ORACLE_PORT")

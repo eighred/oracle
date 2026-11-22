@@ -27,6 +27,8 @@ Run the helper as a regular OS user. Choose a temporary passphrase at the masked
 
 ## Verify
 
+To observe the paper ledger, add `--observe-paper` to the local pilot command. It freezes a future nine-sample window and records fresh synthetic prices once per UTC minute. At the end, open **Paper outcomes** to inspect the benchmark, net returns, costs and settlement rows or download the immutable JSON. The workstation identifies the source and shows missing coverage for a stopped experiment. With `--check`, the same command also interrupts the disposable PostgreSQL server mid-run, checks idempotent redelivery, verifies each settlement independently and exercises browser access to the restored report. Allow about ten minutes for that mode.
+
 From `web/`, after building both components:
 
 ```sh
