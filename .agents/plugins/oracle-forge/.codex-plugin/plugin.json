@@ -1,0 +1,20 @@
+{
+  "name": "oracle-forge",
+  "version": "0.1.0",
+  "description": "Develop and verify Oracle's own-account research core and web workstation.",
+  "author": {
+    "name": "Eighred"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Oracle Forge",
+    "shortDescription": "Route Oracle changes and verify their evidence.",
+    "developerName": "Eighred",
+    "category": "Productivity",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": "Use Oracle Forge to identify the owning Oracle component and verify the requested change."
+  }
+}

@@ -1,0 +1,32 @@
+name: Engineering work
+description: Define an observable Oracle change or decision.
+title: "[Area] "
+body:
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Outcome and owner
+      description: State the operator need, owning domain, priority, kind and source.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Current evidence
+      description: Include the revision, affected path or design reference.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Verified when
+      description: Give an observable success case, refusal case and independent evidence.
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies and approvals
+      description: Identify required inputs, blocked effects and who owns approval.
+    validations:
+      required: true

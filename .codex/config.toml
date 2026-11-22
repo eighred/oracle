@@ -1,0 +1,2 @@
+[plugins."oracle-forge@oracle-local"]
+enabled = true

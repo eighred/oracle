@@ -1,0 +1,20 @@
+{
+  "name": "oracle-local",
+  "interface": {
+    "displayName": "Eighred Engineering"
+  },
+  "plugins": [
+    {
+      "name": "oracle-forge",
+      "source": {
+        "source": "local",
+        "path": "./.agents/plugins/oracle-forge"
+      },
+      "policy": {
+        "installation": "INSTALLED_BY_DEFAULT",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+name: Install pinned Gitleaks
+description: Verify the Linux x64 archive and expose its scanner to the current job.
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        set -euo pipefail
+        target="$(mktemp -d "${RUNNER_TEMP}/oracle-gitleaks.XXXXXX")"
+        cd "$target"
+        curl --fail --silent --show-error --location --retry 3 --output scanner.tgz \
+          https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+        echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  scanner.tgz" | sha256sum --check
+        tar xzf scanner.tgz gitleaks
+        ./gitleaks version
+        echo "$target" >> "$GITHUB_PATH"
