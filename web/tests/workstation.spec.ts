@@ -12,7 +12,7 @@ test("follow a costed strategy to its settlements and immutable export", async (
   const run = report.backtest.runs.find(
     (item: { rule: string }) => item.rule === "momentum",
   );
-  await page.goto("/");
+  await page.goto("/#overview");
   await expect(
     page.getByRole("heading", { name: "Portfolio review" }),
   ).toBeVisible();
@@ -89,7 +89,7 @@ test("mobile navigation and settlement inspector support keyboard return", async
   page,
 }) => {
   await page.setViewportSize({ width: 375, height: 800 });
-  await page.goto("/");
+  await page.goto("/#overview");
   await expect(page.getByRole("button", { name: "Momentum" })).toBeVisible();
   const icon = page
     .getByRole("button", { name: "Toggle navigation" })
@@ -130,7 +130,7 @@ test("denied operator receives no financial data", async ({
     },
   });
   const page = await context.newPage();
-  await page.goto("/");
+  await page.goto("/#overview");
   await expect(page.getByRole("status")).toHaveText(
     "Access to this portfolio is denied.",
   );
@@ -149,7 +149,7 @@ test("pending, empty and unavailable projections have explicit states", async ({
     await pending;
     await route.fulfill({ status: 404 });
   });
-  await page.goto("/");
+  await page.goto("/#overview");
   await expect(page.getByRole("status")).toHaveText("Loading portfolio…");
   finish();
   await expect(page.getByRole("status")).toHaveText(

@@ -148,7 +148,18 @@ test("direct discovery rankings lead to a saved template and server-sized risk",
     page.getByRole("link", { name: "Market listing update" }),
   ).toHaveAttribute("href", "https://www.okx.com/help/listing");
   await expect(page.locator("tbody tr").first()).toContainText("BETA/USDT");
-  await page.getByRole("button", { name: "Gainers", exact: true }).click();
+  const card = page.getByRole("button", { name: "Explore Top gainers" });
+  await expect(card).toContainText("ALPHA/USDT");
+  await expect(
+    page.getByRole("button", { name: "Explore Volume leaders" }),
+  ).toContainText("BETA/USDT");
+  await card.click();
+  await expect(
+    page.getByRole("heading", { name: "Spot markets" }),
+  ).toBeFocused();
+  await expect(
+    page.getByRole("button", { name: "Gainers", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("tbody tr")).toHaveCount(1);
   await page.getByRole("button", { name: "Losers", exact: true }).click();
   await page
@@ -469,4 +480,89 @@ test("paper cash buys weighted lots, rebalances offline and redeems exactly once
   } finally {
     await guest.close();
   }
+});
+test("app entry supports mobile market search, public basket discovery and wallet navigation", async ({
+  page,
+  request,
+}) => {
+  const id = randomUUID(),
+    hidden = randomUUID();
+  for (const [basket, name] of [
+    [id, "Community " + id],
+    [hidden, "Private " + hidden],
+  ]) {
+    expect(
+      (
+        await request.post("/api/baskets", {
+          data: {
+            op: "create",
+            id: basket,
+            name,
+            items: [{ venue: "okx", pair: "ETH/USDT", bps: 10000 }],
+          },
+        })
+      ).ok(),
+    ).toBeTruthy();
+  }
+  expect(
+    (
+      await request.post("/api/baskets", {
+        data: { op: "publish", id, enabled: true },
+      })
+    ).ok(),
+  ).toBeTruthy();
+  expect(
+    (
+      await request.post("/api/baskets", {
+        data: { op: "pin", id, enabled: true },
+      })
+    ).ok(),
+  ).toBeTruthy();
+  const feed = await (await request.get("/api/discover/baskets")).json();
+  expect(feed.baskets.map((b: { id: string }) => b.id)).toContain(id);
+  expect(feed.baskets.map((b: { id: string }) => b.id)).not.toContain(hidden);
+  await page.route(
+    "https://www.okx.com/api/v5/market/tickers?instType=SPOT",
+    (r) =>
+      r.fulfill({
+        json: {
+          code: "0",
+          data: Array.from({ length: 30 }, (_, i) => ({
+            instId: "COIN" + i + "-USDT",
+            instType: "SPOT",
+            last: "12",
+            open24h: "10",
+            volCcy24h: String(100 - i),
+            ts: String(Date.now()),
+          })),
+        },
+      }),
+  );
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/");
+  await expect(
+    page.getByRole("heading", { name: "Discover markets" }),
+  ).toBeVisible();
+  await page.getByRole("searchbox").fill("COIN29");
+  await expect(page.locator("tbody tr")).toHaveCount(1);
+  await expect(page.locator("tbody tr")).toContainText("COIN29/USDT");
+  await page.getByRole("button", { name: "Community", exact: true }).click();
+  await page.getByRole("link", { name: new RegExp("Community " + id) }).click();
+  await expect(
+    page.getByRole("heading", { name: "Community " + id }),
+  ).toBeVisible();
+  await page
+    .getByRole("navigation", { name: "App navigation" })
+    .getByRole("link", { name: "Wallet" })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Balance overview" }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(375);
+  const manifest = await (await request.get("/manifest.webmanifest")).json();
+  expect(manifest.start_url).toBe("/#discover");
+  for (const icon of manifest.icons)
+    expect((await request.get(icon.src)).ok()).toBeTruthy();
 });

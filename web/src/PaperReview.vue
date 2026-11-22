@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { apiFetch } from "./api";
 import { computed, onMounted, ref } from "vue";
 import { clock, utc, names, numeric, type Rule, type Run } from "./report";
 import Icon from "./Icon.vue";
@@ -57,7 +58,7 @@ async function refresh() {
   revision.value = "";
   status.value = "Loading paper experiment…";
   try {
-    const response = await fetch(endpoint + "latest", {
+    const response = await apiFetch(endpoint + "latest", {
       cache: "no-store",
       credentials: "same-origin",
     });

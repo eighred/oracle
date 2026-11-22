@@ -253,6 +253,7 @@ async fn run() -> Result<(), &'static str> {
             }
             let app = Router::new()
                 .route("/api/profile", get(social::profile))
+                .route("/api/discover/baskets", get(social::community))
                 .route("/api/discover/news", get(news::feed))
                 .route(
                     "/api/platform-settings",

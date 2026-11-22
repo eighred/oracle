@@ -232,3 +232,22 @@ pub(super) async fn profile(
     .await;
     response("paper_profile_v1", &headers, result)
 }
+
+pub(super) async fn community(State(db): State<Database>, headers: HeaderMap) -> Response {
+    let result = async {
+        let login = identity(&headers).ok_or(StatusCode::UNAUTHORIZED)?;
+        let mut client = db.lock().await;
+        let tx = client.transaction().await.map_err(failure)?;
+        session(&tx, login).await?;
+        let rows = tx.query("SELECT jsonb_build_object('id',b->'id','name',b->'name','creator',b->'creator',
+            'users',b->'users','pinned',b->'pinned','revision',b->'revision','items',b->'items')::text
+            FROM jsonb_array_elements(oracle_social.library()->'baskets') WITH ORDINALITY AS shelf(b,rank)
+            WHERE b->'public'='true'::jsonb ORDER BY rank LIMIT 6", &[])
+            .await.map_err(failure)?;
+        let baskets = rows.iter().map(|row|serde_json::from_str::<Value>(row.get(0)))
+            .collect::<Result<Vec<_>,_>>().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        tx.commit().await.map_err(failure)?;
+        Ok(json!({"baskets":baskets}))
+    }.await;
+    response("community_baskets_v1", &headers, result)
+}

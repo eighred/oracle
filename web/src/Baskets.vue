@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { apiFetch, shareBase } from "./api";
 import { computed, onMounted, onBeforeUnmount, ref } from "vue";
 type Item = { venue: string; pair: string; bps: number };
 type Basket = {
@@ -108,7 +109,7 @@ const total = computed(() =>
   items.value.reduce((sum, i) => sum + Number(i.bps), 0),
 );
 async function api(payload?: Record<string, unknown>) {
-  const res = await fetch("/api/baskets", {
+  const res = await apiFetch("/api/baskets", {
     method: payload ? "POST" : "GET",
     cache: "no-store",
     credentials: "same-origin",
