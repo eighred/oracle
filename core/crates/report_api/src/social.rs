@@ -355,3 +355,33 @@ pub(super) fn names_provider(text: &str) -> bool {
     let lower = text.to_ascii_lowercase();
     ["binance", "okx"].iter().any(|name| lower.contains(name))
 }
+
+pub(super) fn member_advisory(mut advisory: Value) -> Value {
+    if let Some(fields) = advisory.as_object_mut() {
+        fields.remove("model");
+    }
+    if names_provider(&advisory.to_string()) {
+        return json!({"state":"unavailable"});
+    }
+    advisory
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn member_commentary_omits_internal_names_and_model_aliases() {
+        let advisory = json!({"state":"available","model":"internal-model","text":"Short sample."});
+        assert_eq!(
+            member_advisory(advisory),
+            json!({"state":"available","text":"Short sample."})
+        );
+        for name in ["Binance", "OKX"] {
+            assert_eq!(
+                member_advisory(json!({"state":"available","text":name})),
+                json!({"state":"unavailable"})
+            );
+        }
+    }
+}

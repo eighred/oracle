@@ -70,13 +70,13 @@ const views = [
   { id: "paper", title: "Paper outcomes", icon: "Clock" },
 ] as const;
 const consumerRoutes = ["discover", "baskets", "profile", "spot-risk"];
-const navigation = native
+const navigation = computed(() => native || memberHandle.value
   ? views.filter((item) => consumerRoutes.includes(item.id))
-  : views;
+  : views);
 const defaultView = views.find((item) => item.id === "discover")!;
 function currentView() {
   return (
-    navigation.find(
+    navigation.value.find(
       (item) => "#" + item.id === window.location.hash.split("?")[0],
     ) ?? defaultView
   );

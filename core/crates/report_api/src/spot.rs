@@ -137,13 +137,14 @@ async fn access(db: &Database, portfolio: &str, login: (String, String)) -> Resu
         .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)
 }
 
+pub(super) static SLOTS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(2);
+
 pub(super) async fn handle(
     State(db): State<Database>,
     Path(portfolio): Path<String>,
     headers: HeaderMap,
     payload: Result<Json<Request>, axum::extract::rejection::JsonRejection>,
 ) -> Response {
-    static SLOTS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(2);
     let Some(login) = identity(&headers) else {
         return (
             StatusCode::UNAUTHORIZED,
@@ -184,12 +185,8 @@ pub(super) async fn handle(
         match &mut result {
             Ok(value) => {
                 super::social::member_market_view(value);
-                if value
-                    .pointer("/advisory/text")
-                    .and_then(Value::as_str)
-                    .is_some_and(super::social::names_provider)
-                {
-                    value["advisory"] = json!({"state":"unavailable"});
+                if let Some(advisory) = value.get_mut("advisory") {
+                    *advisory = super::social::member_advisory(advisory.take());
                 }
             }
             Err(reason) if super::social::names_provider(reason) => {

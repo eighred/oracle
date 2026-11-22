@@ -9,6 +9,7 @@ mod social;
 mod spot;
 mod spot_marks;
 mod spot_ticket;
+mod wallet_risk;
 mod watchlist;
 use axum::{
     Router,
@@ -306,6 +307,11 @@ async fn run() -> Result<(), &'static str> {
                         .layer(axum::extract::DefaultBodyLimit::max(2048)),
                 )
                 .route("/api/profile", get(social::profile))
+                .route(
+                    "/api/v1/me/wallet-risk",
+                    axum::routing::post(wallet_risk::handle)
+                        .layer(axum::extract::DefaultBodyLimit::max(1024)),
+                )
                 .route(
                     "/api/v1/me/watchlist",
                     get(watchlist::read)
