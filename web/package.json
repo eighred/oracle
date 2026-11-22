@@ -6,7 +6,7 @@
     "build": "vue-tsc --noEmit && vite build",
     "test:browser": "playwright test",
     "mobile:sync": "npm run build && cap sync",
-    "test:member": "node tools/member_registration.mjs"
+    "test:member": "node tools/native_response.mjs && node tools/member_registration.mjs"
   },
   "dependencies": {
     "@capacitor/android": "8.6.2",

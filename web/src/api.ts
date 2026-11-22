@@ -161,12 +161,14 @@ async function nativeRead(path: string, init: RequestInit, auth: string) {
     readTimeout: 30000,
   });
   init.signal?.throwIfAborted();
-  return new Response(
+  const options = { status: response.status, headers: response.headers };
+  if (init.method === "HEAD" || [204, 205, 304].includes(response.status))
+    return new Response(null, options);
+  const body =
     typeof response.data === "string"
       ? response.data
-      : JSON.stringify(response.data),
-    { status: response.status, headers: response.headers },
-  );
+      : JSON.stringify(response.data);
+  return new Response(body, options);
 }
 
 export async function signIn(user: string, pass: string) {

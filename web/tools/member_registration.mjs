@@ -27,11 +27,11 @@ function code(key) {
     .padStart(6, "0");
 }
 
-async function verificationLink() {
+async function verificationLink(subject) {
   for (let attempt = 0; attempt < 35; attempt++) {
     const list = await (await fetch(mail + "/api/v1/messages")).json();
-    const match = list.messages.find((m) =>
-      m.To.some((t) => t.Address === email),
+    const match = list.messages.find(
+      (m) => m.To.some((t) => t.Address === email) && subject.test(m.Subject),
     );
     if (match) {
       const message = await (
@@ -61,7 +61,7 @@ try {
   await page.locator("#username").fill(handle);
   await page.locator("#email").fill(email);
   await submit();
-  const verify = await verificationLink();
+  const verify = await verificationLink(/verify/i);
   assert.equal((await page.request.get(origin + "/api/profile")).status(), 401);
   await page.goto(verify);
   await page.locator("#password-new").fill(password);
@@ -79,7 +79,7 @@ try {
   const valid = code(secret);
   await page.locator("#otp").fill(valid === "111111" ? "222222" : "111111");
   await submit();
-  assert.ok(await page.locator("#otp").isVisible());
+  await page.locator("#otp").waitFor();
   await page.waitForTimeout(31000 - (Date.now() % 30000));
   await page.locator("#otp").fill(code(secret));
   const exchange = page.waitForResponse(
@@ -111,6 +111,41 @@ try {
   assert.equal(
     (await page.request.get(origin + "/api/profile", { headers })).status(),
     401,
+  );
+
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByRole("link", { name: /forgot password/i }).click();
+  await page.locator("#username").fill(email);
+  await submit();
+  const recovery = await verificationLink(/reset/i);
+  await page.goto(recovery);
+  const replacement = randomBytes(24).toString("hex");
+  await page.locator("#password-new").fill(replacement);
+  await page.locator("#password-confirm").fill(replacement);
+  await submit();
+  await page.goto(origin);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.locator("#username").fill(handle);
+  await page.locator("#password").fill(password);
+  await submit();
+  await page.locator("#password").waitFor();
+  await page.locator("#username").fill(handle);
+  await page.locator("#password").fill(replacement);
+  await submit();
+  await page.locator("#otp").waitFor();
+  await page.waitForTimeout(31000 - (Date.now() % 30000));
+  await page.locator("#otp").fill(code(secret));
+  const recovered = page.waitForResponse(
+    (r) =>
+      r.url() === origin + "/api/auth/session" &&
+      r.request().method() === "POST",
+  );
+  await submit();
+  const result = await recovered;
+  assert.equal(result.status(), 200);
+  assert.equal((await result.json()).username, session.username);
+  console.log(
+    "PASS password recovery with the original authenticator and wallet identity",
   );
   console.log(
     "PASS verified email registration, password, required TOTP, scoped wallet and revoked session",
