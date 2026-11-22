@@ -1320,6 +1320,7 @@ dependencies = [
  "base64 0.22.1",
  "oracle-backtest",
  "oracle-portfolio-replay",
+ "ring",
  "serde",
  "serde_json",
  "sha2 0.10.9",

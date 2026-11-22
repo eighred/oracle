@@ -7,6 +7,7 @@ use axum::{
 };
 use base64::{Engine, engine::general_purpose::STANDARD};
 use oracle_portfolio_replay::{FIXTURE, replay, risk};
+use ring::pbkdf2;
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use std::{env, net::Ipv4Addr, process::ExitCode, sync::Arc};
@@ -71,10 +72,10 @@ fn identity(headers: &HeaderMap) -> Option<(String, String)> {
         .strip_prefix("Basic ")?;
     let bytes = STANDARD.decode(basic).ok()?;
     let (user, token) = std::str::from_utf8(&bytes).ok()?.split_once(':')?;
-    if user.is_empty() || token.len() != 64 || !token.bytes().all(|b| b.is_ascii_hexdigit()) {
+    if user.is_empty() || user.len() > 128 || !(16..=256).contains(&token.len()) {
         return None;
     }
-    Some((user.to_owned(), digest(token.as_bytes())))
+    Some((user.to_owned(), token.to_owned()))
 }
 
 async fn lookup(
@@ -91,9 +92,28 @@ async fn lookup(
         .start()
         .await
         .map_err(failed)?;
+    let salt: Option<Vec<u8>> = tx
+        .query_one("SELECT oracle_read.login_salt($1)", &[&login.0])
+        .await
+        .map_err(failed)?
+        .get(0);
+    let salt = salt.ok_or(StatusCode::UNAUTHORIZED)?;
+    let verifier = tokio::task::spawn_blocking(move || {
+        let mut derived = [0u8; 32];
+        pbkdf2::derive(
+            pbkdf2::PBKDF2_HMAC_SHA256,
+            std::num::NonZeroU32::new(600_000).unwrap(),
+            &salt,
+            login.1.as_bytes(),
+            &mut derived,
+        );
+        derived.to_vec()
+    })
+    .await
+    .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
     tx.query_one(
-        "SELECT set_config('oracle.operator',$1,true),set_config('oracle.token_digest',$2,true)",
-        &[&login.0, &login.1],
+        "SELECT set_config('oracle.operator',$1,true),set_config('oracle.token_digest',encode($2::bytea,'hex'),true)",
+        &[&login.0, &verifier],
     )
     .await
     .map_err(failed)?;

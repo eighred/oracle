@@ -1,6 +1,7 @@
 """Run the synthetic workstation on loopback with a disposable PostgreSQL cluster."""
 import argparse
 import base64
+from getpass import getpass
 from contextlib import contextmanager
 import hashlib
 import json
@@ -85,14 +86,19 @@ def main():
                 subprocess.run([pg/"psql", "-Xq", "-v", "ON_ERROR_STOP=1", "-h", stage, "-U",
                                 "pilot_admin", "-d", "postgres"], input=statement, text=True, check=True)
             sql(migration.read_text())
-            password = secrets.token_hex(32)
+            password = (secrets.token_hex(32) if args.check is not None
+                        else getpass("Choose a temporary operator passphrase (16–256 UTF-8 bytes): "))
+            if not 16 <= len(password.encode()) <= 256:
+                raise ValueError("passphrase must contain 16–256 UTF-8 bytes")
             def session(user, token):
-                key = hashlib.sha256(token.encode()).hexdigest()
-                sql(f"INSERT INTO oracle_read.sessions VALUES ('{key}','{user}',now()+interval '8 hours',NULL)")
+                salt = secrets.token_bytes(16)
+                key = hashlib.pbkdf2_hmac("sha256", token.encode(), salt, 600_000).hex()
+                sql(f"INSERT INTO oracle_read.sessions VALUES ('{key}','{user}',decode('{salt.hex()}','hex'),now()+interval '8 hours',NULL)")
+                return key
             sql("CREATE ROLE pilot_reader LOGIN IN ROLE oracle_report_reader;"
                 "CREATE ROLE pilot_writer LOGIN IN ROLE oracle_report_writer;"
                 "INSERT INTO oracle_read.portfolio_grants VALUES ('operator','own-paper-01')")
-            session("operator", password)
+            key = session("operator", password)
             def database_env(user, database="postgres"):
                 return {**os.environ, "ORACLE_DATABASE_URL": f"host='{stage}' user={user} dbname={database}"}
             def publish():
@@ -101,9 +107,7 @@ def main():
             revision = publish()
             with api_server(args.api_bin, args.dist, database_env("pilot_reader"), args.port) as origin:
                 if args.check is None:
-                    keyfile = stage/"operator.password"
-                    keyfile.write_text(password)
-                    print(f"{origin} · sign in as operator using {keyfile} · press Enter to stop", flush=True)
+                    print(f"{origin} · sign in as operator with your temporary passphrase · press Enter to stop", flush=True)
                     input()
                     return
                 assert publish() == revision
@@ -114,7 +118,6 @@ def main():
                 # would otherwise mask an accidentally unrestricted table.
                 sql("INSERT INTO oracle_read.reports(portfolio,report_id,payload) "
                     "SELECT 'other-paper',encode(sha256('other'::bytea),'hex'),'other'::bytea")
-                key = hashlib.sha256(password.encode()).hexdigest()
                 sql(f"""
                     SET ROLE pilot_reader;
                     BEGIN;

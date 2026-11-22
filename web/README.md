@@ -17,7 +17,7 @@ python3 core/crates/report_api/tools/local_pilot.py \
   --pg-bin "$(pg_config --bindir)" --api-bin core/target/debug/oracle-report-api --dist web/dist
 ```
 
-Run the helper as a regular OS user. It starts a disposable database in a private temporary directory, publishes the synthetic report, and prints the loopback address and a local password-file path. Sign in as `operator` using the contents of that file. Press Enter in the terminal to stop the processes and remove this disposable state. The server serves the built web assets and the API from the same origin. Credentials are absent from the JavaScript bundle.
+Run the helper as a regular OS user. Choose a temporary passphrase at the masked terminal prompt. The helper starts a disposable database in a private directory, publishes the synthetic report and prints its loopback address. Sign in as `operator` with that passphrase. Press Enter in the terminal to stop the processes and remove this disposable state. The server serves the built web assets and the API from the same origin. Credentials are absent from the JavaScript bundle.
 
 ## Verify
 

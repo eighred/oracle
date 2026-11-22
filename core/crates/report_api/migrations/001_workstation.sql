@@ -7,7 +7,8 @@ GRANT USAGE ON SCHEMA oracle_read TO oracle_report_reader, oracle_report_writer;
 
 CREATE TABLE oracle_read.sessions (
     token_digest text PRIMARY KEY CHECK (token_digest ~ '^[a-f0-9]{64}$'),
-    principal text NOT NULL,
+    principal text NOT NULL UNIQUE,
+    salt bytea NOT NULL CHECK (octet_length(salt) = 16),
     expires_at timestamptz NOT NULL,
     revoked_at timestamptz
 );
@@ -25,6 +26,11 @@ CREATE TABLE oracle_read.reports (
 );
 CREATE INDEX reports_latest ON oracle_read.reports (portfolio, published_at DESC, report_id);
 
+CREATE FUNCTION oracle_read.login_salt(login text) RETURNS bytea
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+    SELECT salt FROM oracle_read.sessions WHERE principal = login
+      AND revoked_at IS NULL AND expires_at > statement_timestamp()
+$$;
 CREATE FUNCTION oracle_read.principal() RETURNS text
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
     SELECT principal FROM oracle_read.sessions
@@ -37,8 +43,8 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
     SELECT EXISTS (SELECT 1 FROM oracle_read.portfolio_grants
                    WHERE principal = oracle_read.principal() AND portfolio = resource)
 $$;
-REVOKE ALL ON FUNCTION oracle_read.principal(), oracle_read.allowed(text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION oracle_read.principal(), oracle_read.allowed(text) TO oracle_report_reader;
+REVOKE ALL ON FUNCTION oracle_read.login_salt(text), oracle_read.principal(), oracle_read.allowed(text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION oracle_read.login_salt(text), oracle_read.principal(), oracle_read.allowed(text) TO oracle_report_reader;
 
 ALTER TABLE oracle_read.reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE oracle_read.reports FORCE ROW LEVEL SECURITY;
