@@ -26,6 +26,12 @@ jobs:
         run: test "$FORGE_RESULT" = success
       - run: python3 -B tools/check_foundation.py verify
       - run: python3 -B -m unittest discover -s tests -v
+      - name: Verify the Rust spot replay
+        working-directory: rust
+        run: |
+          cargo fmt --all --check
+          cargo clippy --locked --workspace --all-targets -- -D warnings
+          cargo test --locked --workspace
   secrets:
     name: gitleaks
     runs-on: ubuntu-24.04
