@@ -6,6 +6,8 @@ Start with the [architecture and quantitative charter](docs/architecture/oracle.
 
 ## Local development
 
+The first financial entrypoint replays a dated synthetic BTC/USDT portfolio with exact arithmetic. Run it from `rust` with `cargo run --locked -p oracle-portfolio-replay -- 1767225660000 1767225660100`. The [spot replay guide](rust/crates/portfolio_replay/README.md) explains the two cutoffs, source provenance, correction and missing-price behavior.
+
 From the repository root, with Git and Python 3.11 or later:
 
 ```sh
