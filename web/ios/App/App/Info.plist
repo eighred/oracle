@@ -6,7 +6,9 @@
 	<string>$(CAPACITOR_DEBUG)</string>
 	<key>NSAppTransportSecurity</key>
 	<dict><key>NSAllowsLocalNetworking</key><true/></dict>
-	<key>CFBundleDevelopmentRegion</key>
+	<key>CFBundleURLTypes</key>
+    <array><dict><key>CFBundleURLSchemes</key><array><string>com.eighred.oracle</string></array></dict></array>
+    <key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
         <string>Oracle</string>

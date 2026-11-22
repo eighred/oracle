@@ -127,7 +127,11 @@ async fn access(db: &Database, portfolio: &str, login: (String, String)) -> Resu
         .start()
         .await
         .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
-    authorize(&tx, portfolio, login).await?;
+    if portfolio == "member-scenario" && login.0.starts_with('@') {
+        super::session(&tx, login).await?;
+    } else {
+        authorize(&tx, portfolio, login).await?;
+    }
     tx.commit()
         .await
         .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)

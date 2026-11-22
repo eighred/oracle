@@ -12,6 +12,7 @@ use sha2::{Digest, Sha256};
 use std::time::Duration;
 
 const OKX: &str = "https://www.okx.com";
+pub mod book;
 pub const MAX_CLOSES: usize = 100;
 #[cfg(test)]
 mod tests;

@@ -58,15 +58,29 @@ onMounted(() => void submit("list"));
       </p>
       <form @submit.prevent="submit('connection', { venue, enabled: true })">
         <label
-          >Exchange<select v-model="venue">
+          >Exchange ID<input
+            list="venue-ids"
+            v-model.trim="venue"
+            pattern="[a-z][a-z0-9]{1,31}"
+            maxlength="32"
+            required
+            placeholder="CCXT exchange ID"
+          /><datalist id="venue-ids">
             <option value="binance">Binance</option>
             <option value="okx">OKX</option>
-          </select></label
+          </datalist></label
         ><button :disabled="busy">Stage connection</button>
       </form>
       <div v-for="c in data.connections" :key="c.venue">
         <strong>{{ c.venue }}</strong> ·
-        {{ c.enabled ? "Staged" : "Disabled" }} ·
+        {{
+          !c.enabled
+            ? "Disabled"
+            : ["okx", "binance"].includes(c.venue)
+              ? "Paper adapter available"
+              : "Staged � adapter qualification pending"
+        }}
+        ·
         <code>{{ c.secret_ref }}</code>
         <button
           v-if="c.enabled"

@@ -1,0 +1,19 @@
+name: oracle-members
+services:
+  identity:
+    image: quay.io/keycloak/keycloak:26.8.2@sha256:7e66a96e4739239070aeaf72e4c5decf0f7f682cfc725b9f7ea2b336eaba38b3
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_HOSTNAME: http://127.0.0.1:8180
+    volumes:
+      - identity:/opt/keycloak/data
+      - ./theme:/opt/keycloak/themes/oracle:ro
+      - ./realm.json:/opt/keycloak/data/import/oracle.json:ro
+    ports:
+      - "127.0.0.1:8180:8080"
+  mail:
+    image: axllent/mailpit@sha256:23a2ef85bc50853ab3093645d1d64679afd8887e89da5e48a88940c172591a4e
+    ports:
+      - "127.0.0.1:8125:8025"
+volumes:
+  identity:

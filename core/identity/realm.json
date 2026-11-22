@@ -1,0 +1,294 @@
+{
+  "realm": "oracle",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": true,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "verifyEmail": true,
+  "editUsernameAllowed": false,
+  "resetPasswordAllowed": true,
+  "bruteForceProtected": true,
+  "passwordPolicy": "length(12)",
+  "displayName": "Eighred Oracle",
+  "smtpServer": {
+    "host": "mail",
+    "port": "1025",
+    "from": "members@oracle.test",
+    "fromDisplayName": "Eighred Oracle"
+  },
+  "accessTokenLifespan": 300,
+  "browserFlow": "Oracle password and OTP",
+  "authenticationFlows": [
+    {
+      "alias": "Oracle password and OTP",
+      "description": "Require both a password and authenticator code",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "auth-username-password-form",
+          "authenticatorConfig": "oracle-password",
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "userSetupAllowed": false,
+          "authenticatorFlow": false
+        },
+        {
+          "authenticator": "auth-otp-form",
+          "authenticatorConfig": "oracle-otp",
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "userSetupAllowed": true,
+          "authenticatorFlow": false
+        }
+      ]
+    },
+    {
+      "alias": "Oracle password recovery",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "reset-credentials-choose-user",
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "userSetupAllowed": false,
+          "authenticatorFlow": false
+        },
+        {
+          "authenticator": "reset-credential-email",
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "userSetupAllowed": false,
+          "authenticatorFlow": false
+        },
+        {
+          "authenticator": "reset-password",
+          "requirement": "REQUIRED",
+          "priority": 30,
+          "userSetupAllowed": false,
+          "authenticatorFlow": false
+        }
+      ]
+    },
+    {
+      "alias": "Oracle broker MFA",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "auth-otp-form",
+          "authenticatorConfig": "oracle-broker-otp",
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "userSetupAllowed": true,
+          "authenticatorFlow": false
+        }
+      ]
+    }
+  ],
+  "authenticatorConfig": [
+    {
+      "alias": "oracle-password",
+      "config": {
+        "default.reference.value": "pwd",
+        "default.reference.maxAge": "28800"
+      }
+    },
+    {
+      "alias": "oracle-otp",
+      "config": {
+        "default.reference.value": "otp",
+        "default.reference.maxAge": "28800"
+      }
+    },
+    {
+      "alias": "oracle-broker-otp",
+      "config": {
+        "default.reference.value": "broker_otp",
+        "default.reference.maxAge": "28800"
+      }
+    }
+  ],
+  "requiredActions": [
+    {
+      "alias": "CONFIGURE_TOTP",
+      "name": "Configure OTP",
+      "providerId": "CONFIGURE_TOTP",
+      "enabled": true,
+      "defaultAction": true,
+      "priority": 30
+    },
+    {
+      "alias": "VERIFY_EMAIL",
+      "name": "Verify email",
+      "providerId": "VERIFY_EMAIL",
+      "enabled": true,
+      "defaultAction": true,
+      "priority": 10
+    },
+    {
+      "alias": "UPDATE_PASSWORD",
+      "name": "Update password",
+      "providerId": "UPDATE_PASSWORD",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 20
+    },
+    {
+      "alias": "UPDATE_PROFILE",
+      "name": "Update profile",
+      "providerId": "UPDATE_PROFILE",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 40
+    },
+    {
+      "alias": "VERIFY_PROFILE",
+      "name": "Verify profile",
+      "providerId": "VERIFY_PROFILE",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 50
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "oracle-web",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://127.0.0.1:8040/"
+      ],
+      "webOrigins": [
+        "http://127.0.0.1:8040"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://127.0.0.1:8040/"
+      },
+      "protocolMappers": [
+        {
+          "name": "Verified authentication methods",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-amr-mapper",
+          "config": {
+            "access.token.claim": "true",
+            "id.token.claim": "true"
+          }
+        },
+        {
+          "name": "Federated sign-in provider",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usersessionmodel-note-mapper",
+          "config": {
+            "user.session.note": "identity_provider",
+            "claim.name": "oracle_broker",
+            "jsonType.label": "String",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "oracle-mobile",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "com.eighred.oracle://identity/callback"
+      ],
+      "webOrigins": [],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "protocolMappers": [
+        {
+          "name": "Verified authentication methods",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-amr-mapper",
+          "config": {
+            "access.token.claim": "true",
+            "id.token.claim": "true"
+          }
+        },
+        {
+          "name": "Federated sign-in provider",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usersessionmodel-note-mapper",
+          "config": {
+            "user.session.note": "identity_provider",
+            "claim.name": "oracle_broker",
+            "jsonType.label": "String",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "requiredCredentials": [
+    "password"
+  ],
+  "components": {
+    "org.keycloak.userprofile.UserProfileProvider": [
+      {
+        "name": "declarative-user-profile",
+        "providerId": "declarative-user-profile",
+        "config": {
+          "kc.user.profile.config": [
+            "{\"attributes\":[{\"name\":\"username\",\"displayName\":\"${username}\",\"validations\":{\"length\":{\"min\":3,\"max\":32},\"pattern\":{\"pattern\":\"^[a-zA-Z0-9_]+$\",\"error-message\":\"Use letters, digits or underscores.\"}},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]}},{\"name\":\"email\",\"displayName\":\"${email}\",\"validations\":{\"email\":{},\"length\":{\"max\":254}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]}}],\"groups\":[]}"
+          ]
+        }
+      }
+    ]
+  },
+  "resetCredentialsFlow": "Oracle password recovery",
+  "identityProviders": [
+    {
+      "enabled": false,
+      "trustEmail": false,
+      "storeToken": false,
+      "firstBrokerLoginFlowAlias": "first broker login",
+      "postBrokerLoginFlowAlias": "Oracle broker MFA",
+      "alias": "google",
+      "providerId": "google",
+      "displayName": "Google",
+      "config": {
+        "defaultScope": "openid email profile",
+        "syncMode": "IMPORT"
+      }
+    },
+    {
+      "enabled": false,
+      "trustEmail": false,
+      "storeToken": false,
+      "firstBrokerLoginFlowAlias": "first broker login",
+      "postBrokerLoginFlowAlias": "Oracle broker MFA",
+      "alias": "apple",
+      "providerId": "oidc",
+      "displayName": "Apple",
+      "config": {
+        "authorizationUrl": "https://appleid.apple.com/auth/authorize?response_mode=form_post",
+        "tokenUrl": "https://appleid.apple.com/auth/token",
+        "jwksUrl": "https://appleid.apple.com/auth/keys",
+        "issuer": "https://appleid.apple.com",
+        "useJwksUrl": "true",
+        "validateSignature": "true",
+        "disableUserInfo": "true",
+        "clientAuthMethod": "client_secret_post",
+        "defaultScope": "openid email",
+        "syncMode": "IMPORT"
+      }
+    }
+  ],
+  "loginTheme": "oracle"
+}

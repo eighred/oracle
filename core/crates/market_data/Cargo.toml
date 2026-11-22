@@ -6,6 +6,7 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+num-rational = "0.4"
 ccxt = { version = "=4.5.93", default-features = false, features = ["binance", "okx"] }
 oracle-spot-amount = { path = "../spot_amount" }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
