@@ -4,6 +4,8 @@ The private parent repository owns the product workspace. Change an ordinary mod
 
 ## Full-source developer
 
+The [financial core](../../core/Cargo.toml) is a Cargo workspace. Its crates own portfolio calculations and replay. Place new financial domains here when they have a caller and an acceptance test. Keep independent responsibilities such as the Vue workstation with their own owners.
+
 ```sh
 git clone --recurse-submodules https://github.com/eighred/oracle.git
 cd oracle

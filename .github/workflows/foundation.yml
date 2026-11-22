@@ -27,7 +27,7 @@ jobs:
       - run: python3 -B tools/check_foundation.py verify
       - run: python3 -B -m unittest discover -s tests -v
       - name: Verify the Rust spot replay
-        working-directory: rust
+        working-directory: core
         run: |
           cargo fmt --all --check
           cargo clippy --locked --workspace --all-targets -- -D warnings
