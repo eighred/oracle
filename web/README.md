@@ -58,6 +58,6 @@ npx --no-install cap open android
 npx --no-install cap open ios
 ```
 
-The native identifier is `com.eighred.oracle`. Use Android Studio with JDK 21 and Android SDK 36, or Xcode on macOS with an iOS simulator. The mobile CI workflow assembles a debug APK and builds and launches an unsigned simulator app. Store distribution requires the publisher's signing and store accounts.
+The native identifier is `com.eighred.oracle`. Use Android Studio with JDK 21 and Android SDK 36, or Xcode on macOS with an iOS simulator. The mobile CI workflow produces a debug APK, an unsigned Android App Bundle and an unsigned iPhone device archive. It also builds and launches the simulator app. Store distribution requires the publisher's signing and store accounts.
 
 For a local Android pilot, run the API on port 8040 and connect the test device with `adb reverse tcp:8040 tcp:8040`. The iOS simulator uses its Mac host's loopback. For a test deployment, set `VITE_ORACLE_API_ORIGIN` to the approved HTTPS server origin before building. The native client sends credentials only to that origin through the HTTP bridge and keeps the signed-in session in memory. Use the pilot's operator login for Baskets, Wallet and Risk. Paper venues and journals are served by the Rust backend.
