@@ -1320,6 +1320,7 @@ dependencies = [
  "base64 0.22.1",
  "oracle-backtest",
  "oracle-portfolio-replay",
+ "oracle-spot-amount",
  "ring",
  "serde",
  "serde_json",

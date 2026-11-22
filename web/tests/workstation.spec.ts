@@ -163,3 +163,48 @@ test("pending, empty and unavailable projections have explicit states", async ({
   );
   await expect(page.locator("table")).toHaveCount(0);
 });
+
+test("published paper experiment exposes its own window, coverage and immutable ledger", async ({
+  page,
+  request,
+}) => {
+  const path = "/api/portfolios/own-paper-01/paper/";
+  const response = await request.get(path + "latest");
+  expect(response.ok()).toBeTruthy();
+  const result = await response.json();
+  await page.goto("/#paper");
+  await expect(
+    page.getByRole("heading", { name: "Paper outcomes" }),
+  ).toBeVisible();
+  await expect(page.locator(".asof")).toContainText(result.state);
+  await expect(page.getByRole("main")).toContainText(
+    result.samples.length + " observed",
+  );
+  const download = page.getByRole("link", {
+    name: "Download experiment and ledger",
+  });
+  await expect(download).toHaveAttribute(
+    "href",
+    path + response.headers()["x-oracle-report-id"],
+  );
+  expect(
+    await (await request.get((await download.getAttribute("href"))!)).body(),
+  ).toEqual(await response.body());
+  for (const run of result.projection?.runs ?? []) {
+    const name: Record<string, string> = {
+      hold: "Buy & hold",
+      momentum: "Momentum",
+      dca: "Periodic buys",
+    };
+    const control = page.getByRole("button", {
+      name: new RegExp(name[run.rule]!),
+    });
+    await control.click();
+    await expect(control).toContainText(run.net_pnl);
+    await expect(page.locator("tbody tr").last()).toContainText(
+      run.closing_nav,
+    );
+  }
+  if (result.state === "canceled" && !result.samples.length)
+    await expect(page.locator("table")).toHaveCount(0);
+});

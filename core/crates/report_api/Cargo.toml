@@ -9,6 +9,7 @@ publish = false
 axum = "0.8"
 base64 = "0.22"
 oracle-backtest = { path = "../backtest" }
+oracle-spot-amount = { path = "../spot_amount" }
 oracle-portfolio-replay = { path = "../portfolio_replay" }
 ring = "0.17"
 serde = { version = "1", features = ["derive"] }
