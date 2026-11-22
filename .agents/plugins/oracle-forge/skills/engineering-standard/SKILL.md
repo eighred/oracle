@@ -1,6 +1,6 @@
 ---
 name: engineering-standard
-description: Implement a Oracle issue or code change within its owning domain, with targeted scope and durable state boundaries.
+description: Implement an Oracle issue or code change within its owning domain, with targeted scope and durable state boundaries.
 ---
 
 # Implement the real workflow
@@ -65,7 +65,7 @@ Do not load financial references for unrelated UI, build or tooling changes.
 
 For financial changes, use [the design evidence guide](references/design-evidence.md)
 before choosing an algorithm. Return the smallest decision-useful brief:
-what Kanz must do, what it already does, the specific gap, and the next change
+what Oracle must do, what it already does, the specific gap, and the next change
 with its proof. State material unknowns. Skip this formal brief for trivial edits.
 
 Use the [commands routing table](../commands/SKILL.md) to add focused security,

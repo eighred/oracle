@@ -3,7 +3,7 @@
 Read only the row that matches the task, then inspect its current code and
 issue. This is a navigation aid, not a competing architecture document.
 
-| Boundary | Entry points to inspect |
+| Boundary | Upstream examples to resolve against the Oracle checkout |
 |---|---|
 | Schema and subjects | `schemas/proto/`, `kanz/infra/nats/`, generated SDK instructions in `schemas/README.md` |
 | Admission and execution | `kanz/services/oms/`, `kanz/internal/execution/`, `kanz/services/venue-*/`, `kanz/test/arch/` |

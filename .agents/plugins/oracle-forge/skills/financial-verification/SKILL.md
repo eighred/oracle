@@ -5,7 +5,7 @@ description: Select evidence for Oracle pricing, risk and execution methods, the
 
 # Build and verify institutional behavior
 
-Use financial knowledge to implement a reliable Kanz capability: pricing an
+Use financial knowledge to implement a reliable Oracle capability: pricing an
 instrument, constraining risk, executing an approved intent or recording its
 outcome. The deliverable is a justified code/design decision and its proof, not
 an investment recommendation or a financial-analysis report. Keep production

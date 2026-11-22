@@ -4,7 +4,7 @@ Port of Eighred Kanz Forge at e8998af758d38ded6c25e853ef21e451e0fe425b. The comm
 
 
 Oracle Forge is Eighred's repository-owned engineering and AI-agent coordination
-plugin. Kanz is the institutional investment operating system it helps build:
+plugin. Oracle is the institutional investment operating system it helps build:
 a shared financial model, controlled execution and auditable state across secure
 interfaces. Forge helps developers and Codex investigate current source, choose
 the owning component, implement changes, coordinate authorized workers, verify
@@ -67,7 +67,7 @@ Ordinary development requests select the same skills by the actual change.
 The [organization skill](skills/repository-organization/SKILL.md) applies the
 shared [Eighred organization standard](skills/repository-organization/references/eighred-standard.md).
 Developers enter it through [CONTRIBUTING.md](../../../CONTRIBUTING.md).
-The standard adapts Go's private-package and command boundaries to Kanz's
+The standard adapts Go's private-package and command boundaries to the upstream project's
 multiple runtimes, preserves deployed identities and requires complete path
 consumer verification. It does not copy another project's skeleton.
 

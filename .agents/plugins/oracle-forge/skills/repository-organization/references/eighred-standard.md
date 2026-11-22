@@ -1,6 +1,6 @@
 # Eighred repository organization standard
 
-Eighred is the company. Kanz is its institutional investment operating system.
+Eighred is the company. Oracle is its institutional investment operating system.
 Oracle Forge supplies engineering workflows and coordination for AI agents and
 developers. Repository organization must make financial ownership, execution
 boundaries and verification visible as the product grows.
@@ -22,7 +22,7 @@ inside each runtime. Do not create a deployment per blueprint capability.
 Split a component when ownership, release cadence, trust or scaling requires
 it; a different language or a large file alone does not establish that need.
 
-| Kanz location | Responsibility and limits |
+| Upstream Kanz example | Responsibility and limits |
 |---|---|
 | `kanz/` | Existing Go module and its application owners. Keep this established module/build anchor; its name does not imply that other runtimes are outside Kanz. |
 | `kanz/services/<owner>/` | Domain service, private implementation, migrations and operational runbooks. Deployment ownership must be explicit. |

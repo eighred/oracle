@@ -1,9 +1,9 @@
 ---
 name: pr-delivery
-description: Bring a Oracle PR through current-main review, verification, merge, and issue closure, or record its exact blocker.
+description: Bring an Oracle PR through current-main review, verification, merge, and issue closure, or record its exact blocker.
 ---
 
-# Deliver a Kanz PR
+# Deliver an Oracle PR
 
 Recalculate [validation readiness](../commands/references/validation-readiness.md)
 after a changed check, head/base, runtime artifact or operator hold. Distinguish

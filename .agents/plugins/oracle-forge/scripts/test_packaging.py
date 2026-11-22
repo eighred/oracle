@@ -1,5 +1,7 @@
 """Offline packaging regressions; no Codex process or user profile is used."""
+import json
 from pathlib import Path
+import re
 import runpy
 import subprocess
 import tempfile
@@ -10,6 +12,14 @@ import test_install as install
 
 
 class PackagingTests(unittest.TestCase):
+    def test_agents_command_resolves_the_packaged_profiles(self):
+        plugin = install.ROOT / install.PLUGIN_PATH
+        catalog = json.loads((plugin / "skills/commands/commands.json").read_text(encoding="utf-8"))
+        patterns = re.findall(r"agents/[a-z_*]+\.toml", catalog["/agents"]["workflow"])
+        routed = {path for pattern in patterns for path in plugin.glob(pattern)}
+        self.assertEqual(routed, set((plugin / "agents").glob("*.toml")))
+        self.assertEqual(len(routed), 3)
+
     def test_import_has_no_cli_or_installation_side_effect(self):
         with patch.object(subprocess, "check_output", side_effect=AssertionError("CLI called")), \
              patch.object(install.shutil, "which", side_effect=AssertionError("CLI inspected")):
