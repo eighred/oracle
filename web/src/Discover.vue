@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { apiFetch } from "./api";
+import { accountReady, apiFetch, memberLogin, native, signedIn } from "./api";
+import { useWatchlist } from "./watchlist";
 import { computed, watch, onMounted, onBeforeUnmount, ref } from "vue";
 import TraderFeed from "./TraderFeed.vue";
 import SpotTicket from "./SpotTicket.vue";
@@ -45,9 +46,35 @@ async function news() {
 }
 let timer: ReturnType<typeof setInterval>;
 const trading = ref("");
+const sections = ["Markets", "Watchlist", "Community", "News"] as const;
+type Section = (typeof sections)[number];
+function currentSection(): Section {
+  if (location.hash.split("?")[0] !== "#discover") return "Markets";
+  const tab = new URLSearchParams(location.hash.split("?")[1]).get("tab");
+  return sections.find((s) => s.toLowerCase() === tab) ?? "Markets";
+}
+function selectSection(tab: Section) {
+  location.hash =
+    tab === "Markets" ? "discover" : "discover?tab=" + tab.toLowerCase();
+  section.value = tab;
+}
+function restoreSection() {
+  section.value = currentSection();
+}
 const search = ref(""),
-  section = ref<"Markets" | "Community" | "News">("Markets");
+  section = ref<Section>(currentSection());
+const {
+  saved,
+  busy: saving,
+  notice: watchNotice,
+  sync,
+  toggle,
+  move,
+} = useWatchlist();
 const fresh = computed(() => directory(rows.value, clock.value));
+const prices = computed(
+  () => new Map(fresh.value.map((r) => [r.pair, r.price])),
+);
 const currencies = computed(() =>
   Array.from(
     new Set(["USDT", quote.value, ...fresh.value.map((row) => row.quote)]),
@@ -127,12 +154,18 @@ async function refresh() {
         : "";
   pending.value = false;
 }
-watch(section, (tab) => {
-  if (tab === "News" && !articles.value.length) void news();
-  if (tab === "Community" && !community.value.length) void loadCommunity();
-});
+watch(
+  section,
+  (tab) => {
+    if (tab === "Watchlist") void sync();
+    if (tab === "News" && !articles.value.length) void news();
+    if (tab === "Community" && !community.value.length) void loadCommunity();
+  },
+  { immediate: true },
+);
 onMounted(() => {
   void refresh();
+  window.addEventListener("hashchange", restoreSection);
 
   timer = setInterval(() => {
     clock.value = Date.now();
@@ -140,6 +173,7 @@ onMounted(() => {
   }, 60000);
 });
 onBeforeUnmount(() => {
+  window.removeEventListener("hashchange", restoreSection);
   controller.abort();
   clearInterval(timer);
 });
@@ -151,7 +185,7 @@ onBeforeUnmount(() => {
       ><input
         v-model="search"
         type="search"
-        @input="section = 'Markets'"
+        @input="section !== 'Markets' && selectSection('Markets')"
         placeholder="Search by coin or pair"
     /></label>
   </Teleport>
@@ -160,14 +194,87 @@ onBeforeUnmount(() => {
     <div class="market-center">
       <nav class="market-sections" aria-label="Discovery sections">
         <button
-          v-for="tab in ['Markets', 'Community', 'News'] as const"
+          v-for="tab in sections"
           :key="tab"
           :aria-pressed="section === tab"
-          @click="section = tab"
+          @click="selectSection(tab)"
         >
           {{ tab }}
         </button>
       </nav>
+      <p
+        v-if="watchNotice && (section === 'Markets' || section === 'Watchlist')"
+        role="status"
+      >
+        {{ watchNotice }}
+      </p>
+      <section
+        v-if="section === 'Watchlist'"
+        class="panel watchlist"
+        aria-label="My watchlist"
+      >
+        <div class="section-line">
+          <h2>My watchlist</h2>
+          <button
+            v-if="signedIn || (!accountReady && !native)"
+            class="tool"
+            aria-label="Refresh watchlist"
+            :disabled="saving"
+            @click="sync()"
+          >
+            <Icon name="Regenerate" />
+          </button>
+        </div>
+        <button
+          v-if="!signedIn && (accountReady || native)"
+          @click="memberLogin()"
+        >
+          Sign in
+        </button>
+        <p v-else-if="saved && !saved.pairs.length">
+          Select the star beside a market to save it here.
+        </p>
+        <p v-else-if="saving && !saved" role="status">Loading watchlist…</p>
+        <ul v-if="saved?.pairs.length">
+          <li v-for="(pair, index) in saved.pairs" :key="pair">
+            <div>
+              <button
+                class="saved-market"
+                :disabled="!prices.has(pair)"
+                :aria-label="'Trade ' + pair"
+                @click="trading = pair"
+              >
+                {{ pair }}</button
+              ><small>{{
+                prices.has(pair)
+                  ? prices.get(pair) + " " + pair.split("/")[1]
+                  : "Price unavailable"
+              }}</small>
+            </div>
+            <button
+              :aria-label="'Move ' + pair + ' up'"
+              :disabled="saving || index === 0"
+              @click="move(pair, -1)"
+            >
+              ↑
+            </button>
+            <button
+              :aria-label="'Move ' + pair + ' down'"
+              :disabled="saving || index === saved.pairs.length - 1"
+              @click="move(pair, 1)"
+            >
+              ↓
+            </button>
+            <button
+              :aria-label="'Remove ' + pair + ' from watchlist'"
+              :disabled="saving"
+              @click="toggle(pair)"
+            >
+              <Icon name="XCrossed" />
+            </button>
+          </li>
+        </ul>
+      </section>
       <section
         class="panel market-list"
         :class="{ chosen: section === 'Markets' }"
@@ -214,20 +321,31 @@ onBeforeUnmount(() => {
               <th>Oracle price · {{ quote }}</th>
               <th>24h</th>
               <th class="volume">24h volume · {{ quote }}</th>
-              <th><span class="screen-reader">Basket</span></th>
+              <th><span class="screen-reader">Market actions</span></th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="r in ranked" :key="r.pair">
-              <td>
-                <button
-                  class="ticker"
-                  :aria-label="'Trade ' + r.pair"
-                  @click="trading = r.pair"
-                >
-                  <i aria-hidden="true">{{ r.pair.slice(0, 2) }}</i
-                  ><span>{{ r.pair }}</span>
-                </button>
+              <td class="market-name">
+                <div>
+                  <button
+                    class="watch-star"
+                    :aria-pressed="saved?.pairs.includes(r.pair) ?? false"
+                    :aria-label="'Watch ' + r.pair"
+                    :disabled="saving"
+                    @click="toggle(r.pair)"
+                  >
+                    {{ saved?.pairs.includes(r.pair) ? "★" : "☆" }}
+                  </button>
+                  <button
+                    class="ticker"
+                    :aria-label="'Trade ' + r.pair"
+                    @click="trading = r.pair"
+                  >
+                    <i aria-hidden="true">{{ r.pair.slice(0, 2) }}</i
+                    ><span>{{ r.pair }}</span>
+                  </button>
+                </div>
               </td>
               <td>{{ r.price }}</td>
               <td :class="{ increase: r.change > 0, decrease: r.change < 0 }">
@@ -400,6 +518,7 @@ onBeforeUnmount(() => {
 .filters,
 .market-sections {
   display: flex;
+  flex-wrap: wrap;
   gap: 5px;
   margin: 10px 0;
 }
@@ -450,6 +569,49 @@ onBeforeUnmount(() => {
 }
 .increase {
   color: var(--eighred-green);
+}
+.watch-star,
+.watchlist li button {
+  min-width: 32px;
+  min-height: 36px;
+  color: var(--muted);
+}
+.watch-star {
+  font-size: 18px;
+}
+.market-name > div {
+  display: flex;
+  align-items: center;
+}
+.watch-star[aria-pressed="true"] {
+  color: var(--signal);
+}
+.watchlist ul {
+  list-style: none;
+  padding: 0;
+}
+.watchlist li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+.watchlist li div {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.watchlist li small {
+  display: block;
+  color: var(--muted);
+}
+.watchlist li .saved-market {
+  min-height: 24px;
+  padding: 0;
+  color: inherit;
+  font-weight: 600;
+  text-align: left;
 }
 .decrease {
   color: #ff8ba9;

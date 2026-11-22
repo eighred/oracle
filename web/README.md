@@ -45,6 +45,8 @@ The harness exercises publication, immutable retrieval, two principals on the sa
 
 Discover opens a market table with Popular, Gainers and Losers filters. The browser reads Oracle’s cached market directory, groups matching base and quote symbols and lets members search across the eligible universe. The interface and member API omit provider names. Select a row to request a paper quote or start a basket. The Community and News tabs show trader activity and publisher headlines. The mobile dock opens Discover, Baskets and Wallet. The operator workspace is available at `/#overview`. [Design reference](DESIGN.md)
 
+Members can star a pair in Discover and open `/#discover?tab=watchlist` to reorder or remove it. The server stores the list by account. A missing market price leaves the saved pair visible. Returning to the app reloads the list, and conflicting edits show the other device's saved order.
+
 The manifest supports standalone installation from a secure web origin. The service worker handles an offline navigation with a reconnect screen. Portfolio balances, account data and financial actions use the network. All device shells load the same packaged Vue and TypeScript assets.
 
 ### Android and iOS

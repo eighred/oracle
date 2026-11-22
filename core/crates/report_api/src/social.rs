@@ -28,7 +28,16 @@ pub(super) fn response(
     headers: &HeaderMap,
     result: Result<Value, Failure>,
 ) -> Response {
-    let status = result.as_ref().err().copied().unwrap_or(StatusCode::OK);
+    status_response(policy, headers, result.map(|value| (StatusCode::OK, value)))
+}
+pub(super) fn status_response(
+    policy: &str,
+    headers: &HeaderMap,
+    result: Result<(StatusCode, Value), Failure>,
+) -> Response {
+    let status = match &result {
+        Ok((status, _)) | Err(status) => *status,
+    };
     let principal = if status == StatusCode::UNAUTHORIZED {
         None
     } else {
@@ -36,10 +45,10 @@ pub(super) fn response(
     };
     eprintln!(
         "{}",
-        json!({"policy":policy,"principal":principal,"status":status.as_u16(),"effect":if result.is_ok(){"completed"}else{"refused"}})
+        json!({"policy":policy,"principal":principal,"status":status.as_u16(),"effect":if status.is_success(){"completed"}else{"refused"}})
     );
     let mut r = match result {
-        Ok(v) => Json(v).into_response(),
+        Ok((status, v)) => (status, Json(v)).into_response(),
         Err(StatusCode::UNAUTHORIZED) => (
             StatusCode::UNAUTHORIZED,
             [(

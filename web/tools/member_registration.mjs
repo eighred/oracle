@@ -105,6 +105,12 @@ try {
     await page.request.get(origin + "/api/profile", { headers })
   ).json();
   assert.equal(profile.principal, session.username);
+  const watchlist = origin + "/api/v1/me/watchlist";
+  const favorite = { pairs: ["ETH/USDT"], revision: 0 };
+  assert.equal(
+    (await page.request.put(watchlist, { headers, data: favorite })).status(),
+    200,
+  );
   assert.equal(JSON.stringify(profile).includes(email), false);
   const basket = crypto.randomUUID();
   for (const data of [
@@ -178,6 +184,18 @@ try {
   const result = await recovered;
   assert.equal(result.status(), 200);
   assert.equal((await result.json()).username, session.username);
+  const renewed = await result.json();
+  const authorization =
+    "Basic " +
+    Buffer.from(renewed.username + ":" + renewed.token).toString("base64");
+  assert.deepEqual(
+    await (
+      await page.request.get(watchlist, {
+        headers: { Authorization: authorization },
+      })
+    ).json(),
+    { revision: 1, pairs: favorite.pairs },
+  );
   console.log(
     "PASS password recovery with the original authenticator and wallet identity",
   );
