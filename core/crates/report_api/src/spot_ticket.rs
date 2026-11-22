@@ -7,7 +7,7 @@ use axum::{
 };
 use oracle_market_data::spot::{Venue, book::level};
 use oracle_spot_amount::spot_decimal;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 #[derive(Deserialize)]
@@ -21,6 +21,23 @@ pub(super) enum Instruction {
     Confirm {
         id: String,
     },
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MemberTicket {
+    id: String,
+    pair: String,
+    side: String,
+    quantity: String,
+    price: String,
+    fee: String,
+    spread: String,
+    total: String,
+    currency: String,
+    expires: String,
+    as_of: String,
+    settled: Option<String>,
 }
 
 pub(super) async fn handle(
@@ -106,10 +123,31 @@ async fn apply(db: Database, headers: &HeaderMap, input: Instruction) -> Result<
                 &[&symbol,&side,&quantity,&books.to_string()]).await
         }
     }.map_err(social::failure)?.get(0);
-    tx.commit().await.map_err(social::failure)?;
-    let mut receipt: serde_json::Map<String, Value> =
+    let receipt: MemberTicket =
         serde_json::from_str(&raw).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    receipt.remove("venue");
-    receipt.remove("venuePrice");
-    Ok(Value::Object(receipt))
+    tx.commit().await.map_err(social::failure)?;
+    Ok(json!(receipt))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn member_ticket_contains_only_the_public_contract() {
+        let mut public = json!({"id":"ticket","pair":"BTC/USD","side":"buy","quantity":"1",
+            "price":"55000","fee":"5","spread":"1","total":"55005","currency":"USD",
+            "expires":"2026-11-22T12:00:12Z","asOf":"2026-11-22T12:00:00Z","settled":null});
+        for settlement in [Value::Null, json!("2026-11-22T12:00:05Z")] {
+            public["settled"] = settlement;
+            let mut stored = public.clone();
+            stored["venue"] = json!("future-adapter");
+            stored["venuePrice"] = json!("54999");
+            stored["execution"] = json!({"counterparty":"future-adapter"});
+            let shown: MemberTicket = serde_json::from_value(stored).unwrap();
+            assert_eq!(json!(shown), public);
+        }
+        public.as_object_mut().unwrap().remove("price");
+        assert!(serde_json::from_value::<MemberTicket>(public).is_err());
+    }
 }
