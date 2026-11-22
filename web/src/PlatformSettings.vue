@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { apiFetch } from "./api";
 import { ref, onMounted } from "vue";
 type Settings = {
   connections: {
@@ -20,7 +21,7 @@ async function submit(op: string, fields: Record<string, unknown> = {}) {
   busy.value = true;
   message.value = "";
   try {
-    const res = await fetch("/api/platform-settings", {
+    const res = await apiFetch("/api/platform-settings", {
       method: "POST",
       credentials: "same-origin",
       cache: "no-store",

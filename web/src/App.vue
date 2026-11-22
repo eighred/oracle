@@ -1,9 +1,11 @@
 <script setup lang="ts">
+import { apiFetch, native, signedIn, signOut } from "./api";
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import Icon from "./Icon.vue";
 import EquityChart from "./EquityChart.vue";
 import PaperReview from "./PaperReview.vue";
 import SpotRisk from "./SpotRisk.vue";
+import NativeLogin from "./NativeLogin.vue";
 import Profile from "./Profile.vue";
 import Baskets from "./Baskets.vue";
 import Discover from "./Discover.vue";
@@ -57,15 +59,20 @@ const views = [
   { id: "spot-risk", title: "Spot portfolio risk", icon: "Chart" },
   { id: "paper", title: "Paper outcomes", icon: "Clock" },
 ] as const;
+const consumerRoutes = ["discover", "baskets", "profile", "spot-risk"];
+const navigation = native
+  ? views.filter((item) => consumerRoutes.includes(item.id))
+  : views;
+const defaultView = views.find((item) => item.id === "discover")!;
 function currentView() {
   return (
-    views.find(
+    navigation.find(
       (item) => "#" + item.id === window.location.hash.split("?")[0],
-    ) ?? views[0]
+    ) ?? defaultView
   );
 }
 const view = ref(currentView());
-const collapsed = ref(false);
+const collapsed = ref(currentView().id === "discover");
 const breakpoint = window.matchMedia("(max-width: 760px)");
 const narrow = ref(breakpoint.matches);
 const mobileMenu = ref<HTMLDialogElement>();
@@ -78,6 +85,7 @@ function navigate() {
   if (view.value.id === "baskets") newPair.value = undefined;
   basketPage.value++;
   view.value = currentView();
+  document.title = view.value.title + " · Oracle";
   mobileMenu.value?.close();
   inspector.value?.close();
   if (
@@ -116,7 +124,7 @@ async function refresh() {
   revision.value = "";
   status.value = "Loading portfolio…";
   try {
-    const response = await fetch(endpoint + "latest", {
+    const response = await apiFetch(endpoint + "latest", {
       cache: "no-store",
       credentials: "same-origin",
     });
@@ -157,6 +165,7 @@ async function refresh() {
   }
 }
 onMounted(() => {
+  document.title = view.value.title + " · Oracle";
   window.addEventListener("hashchange", navigate);
   breakpoint.addEventListener("change", resize);
   if (
@@ -180,7 +189,13 @@ onBeforeUnmount(() => {
   <a class="skip" href="#workstation" @click.prevent="heading?.focus()"
     >Skip to workspace</a
   >
-  <div class="shell" :class="{ collapsed: collapsed && !narrow }">
+  <div
+    class="shell"
+    :class="{
+      collapsed: collapsed && !narrow,
+      consumer: consumerRoutes.includes(view.id),
+    }"
+  >
     <dialog
       ref="mobileMenu"
       class="menu-dialog"
@@ -205,7 +220,7 @@ onBeforeUnmount(() => {
         <nav aria-label="Workspace">
           <p class="nav-caption">Workspace</p>
           <a
-            v-for="item in views"
+            v-for="item in navigation"
             :key="item.id"
             :href="'#' + item.id"
             :title="item.title"
@@ -236,12 +251,15 @@ onBeforeUnmount(() => {
           ><span class="brand-mark" aria-hidden="true"></span>Oracle</span
         ><span class="crumb"
           ><Icon name="Folder" />{{
-            view.id === "profile" ? "Personal wallet" : portfolio
+            consumerRoutes.includes(view.id) ? "Paper workspace" : portfolio
           }}</span
         >
         <Icon name="ChevronRightMd" /><span class="current">{{
           view.title
         }}</span>
+        <button v-if="native && signedIn" class="session-exit" @click="signOut">
+          Sign out
+        </button>
         <div
           v-if="
             ![
@@ -278,7 +296,8 @@ onBeforeUnmount(() => {
       </header>
       <main id="workstation">
         <h1 ref="heading" tabindex="-1">{{ view.title }}</h1>
-        <PlatformSettings v-if="view.id === 'settings'" />
+        <NativeLogin v-if="native && !signedIn && view.id !== 'discover'" />
+        <PlatformSettings v-else-if="view.id === 'settings'" />
         <Profile v-else-if="view.id === 'profile'" />
         <Discover v-else-if="view.id === 'discover'" @basket="newBasket" />
         <Baskets
@@ -575,6 +594,19 @@ onBeforeUnmount(() => {
           </dialog></template
         >
       </main>
+      <nav v-if="narrow" class="app-dock" aria-label="App navigation">
+        <a
+          v-for="tab in [
+            { id: 'discover', label: 'Discover', icon: 'Chart' },
+            { id: 'baskets', label: 'Baskets', icon: 'Folder' },
+            { id: 'profile', label: 'Wallet', icon: 'Notebook' },
+          ] as const"
+          :key="tab.id"
+          :href="'#' + tab.id"
+          :aria-current="view.id === tab.id ? 'page' : undefined"
+          ><Icon :name="tab.icon" />{{ tab.label }}</a
+        >
+      </nav>
     </div>
   </div>
 </template>

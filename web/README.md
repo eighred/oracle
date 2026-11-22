@@ -41,3 +41,23 @@ python3 ../core/crates/report_api/tools/local_pilot.py \
 ```
 
 The harness exercises publication, immutable retrieval, two principals on the same server connection, transaction scope cleanup, direct PostgreSQL row policies, expiry and revocation. It restores a database backup and compares authorized response bytes and denied access. Browser checks cover the published NAV, selected strategy, fees, benchmark, report digest, downloads, keyboard operation and a 375 px viewport. Loading and service-error rendering use synthetic HTTP responses. The historical portfolio view has no live subscription or execution entrypoint.
+## Consumer app
+
+The default entry opens Discover. The market pulse summarizes fresh OKX spot pairs, search covers the whole eligible universe, and the community shelf lists public basket templates in participation order with curator pins first. The three primary mobile destinations are Discover, Baskets and Wallet. The operator workspace remains available at `/#overview`. [Design reference](DESIGN.md)
+
+The manifest supports standalone installation from a secure web origin. The service worker handles an offline navigation with a reconnect screen. Portfolio balances, account data and financial actions use the network. All device shells load the same packaged Vue and TypeScript assets.
+
+### Android and iOS
+
+Use Node 22 or later and install the web dependencies from the lockfile. From this directory:
+
+```sh
+npm ci --ignore-scripts
+npm run mobile:sync
+npx --no-install cap open android
+npx --no-install cap open ios
+```
+
+The native identifier is `com.eighred.oracle`. Use Android Studio with JDK 21 and Android SDK 36, or Xcode on macOS with an iOS simulator. The mobile CI workflow assembles a debug APK and builds and launches an unsigned simulator app. Store distribution requires the publisher's signing and store accounts.
+
+For a local Android pilot, run the API on port 8040 and connect the test device with `adb reverse tcp:8040 tcp:8040`. The iOS simulator uses its Mac host's loopback. For a test deployment, set `VITE_ORACLE_API_ORIGIN` to the approved HTTPS server origin before building. The native client sends credentials only to that origin through the HTTP bridge and keeps the signed-in session in memory. Use the pilot's operator login for Baskets, Wallet and Risk. Paper venues and journals are served by the Rust backend.

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { apiFetch } from "./api";
 import { onMounted, onBeforeUnmount, computed, ref } from "vue";
 import Icon from "./Icon.vue";
 
@@ -82,7 +83,7 @@ const positions = computed(
 const abort = new AbortController();
 
 async function read(before?: string) {
-  const res = await fetch(
+  const res = await apiFetch(
     "/api/profile" + (before ? "?before=" + encodeURIComponent(before) : ""),
     { credentials: "same-origin", cache: "no-store", signal: abort.signal },
   );
@@ -122,7 +123,7 @@ async function deposit() {
     depositKey = { intent, key: crypto.randomUUID() };
   const request = depositKey.key;
   await perform(async () => {
-    const res = await fetch("/api/baskets", {
+    const res = await apiFetch("/api/baskets", {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },

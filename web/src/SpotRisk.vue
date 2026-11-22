@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { apiFetch } from "./api";
 import { ref, watch } from "vue";
 import { utc } from "./report";
 const props = defineProps<{
@@ -78,7 +79,7 @@ async function run() {
   result.value = undefined;
   message.value = "";
   try {
-    const res = await fetch(
+    const res = await apiFetch(
       "/api/portfolios/" + encodeURIComponent(props.portfolio) + "/spot-risk",
       {
         method: "POST",
