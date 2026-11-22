@@ -208,7 +208,7 @@
   "/agents": {
     "target": "optional",
     "description": "Inspect specialist roles and native delegation availability.",
-    "workflow": "Read the plugin's canonical agents/kanz_*.toml profiles and inspect actual native subagent tools in this chat. Explain each role and whether the host can invoke it; profiles alone are not installation evidence. Do not create .codex compatibility copies. Delegate only when requested or authorized by applicable workflow instructions, with file ownership, bounded task and host capacity. Use equivalent explicit task instructions when a named role is unavailable but native generic workers exist.",
+    "workflow": "Read the plugin's canonical agents/oracle_*.toml profiles and inspect actual native subagent tools in this chat. Explain each role and whether the host can invoke it; profiles alone are not installation evidence. Do not create .codex compatibility copies. Delegate only when requested or authorized by applicable workflow instructions, with file ownership, bounded task and host capacity. Use equivalent explicit task instructions when a named role is unavailable but native generic workers exist.",
     "skills": [
       "commands"
     ]

@@ -3,7 +3,7 @@ name: stack-routing
 description: Find the owning Oracle plane and typed contract when a change crosses a service boundary or exposes a capability.
 ---
 
-# Route a Kanz change
+# Route an Oracle change
 
 Use the root `AGENTS.md` for the binding planes and invariants. For the current
 change, find its producer, consumer, typed contract, durable store, and guard.

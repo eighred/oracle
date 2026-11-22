@@ -1,6 +1,6 @@
 ---
 name: issue-archaeology
-description: Reconcile a Oracle issue or PR against current main, linked history, guards, acceptance, and superseding work.
+description: Reconcile an Oracle issue or PR against current main, linked history, guards, acceptance, and superseding work.
 ---
 
 # Reconcile engineering state

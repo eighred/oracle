@@ -139,7 +139,7 @@ Report historical red checks separately from current unrun or blocked checks.
 
 `/audit` and `/secure` discover source-backed gaps; `fix` additionally authorizes
 scoped repairs. `/secure` uses the security skill's modes and isolation rules.
-`/evolve` proposes improvements from Kanz's purpose, existing capabilities and
+`/evolve` proposes improvements from Oracle's purpose, existing capabilities and
 observed user/operational needs. Separate a demonstrated gap from a hypothesis;
 do not invent product requirements or adopt dependencies through a proposal.
 `/evolve implement <target>` follows the accepted target through `/work`.

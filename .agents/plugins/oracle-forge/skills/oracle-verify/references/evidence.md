@@ -18,7 +18,7 @@ required higher gates. Report each level reached and the first missing one.
    posture required for a capital action. No test or green CI supplies these.
 
 The repo's command and environment caveats are in root `AGENTS.md`; CI truth is
-`.github/workflows/kanz-ci.yml`. Do not copy their commands here. A result is
+`.github/workflows/foundation.yml`. Do not copy their commands here. A result is
 `not run` or `skipped` when the dependency did not run. If a guard has an
 exemption, passing means the exemption still exists, not that the underlying
 gap is repaired.

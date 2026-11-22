@@ -6,7 +6,7 @@ description: Review Eighred repository ownership, directory naming, component do
 # Organize an Eighred repository
 
 Read the repository's AGENTS.md and [Eighred organization standard](references/eighred-standard.md).
-The standard guides placement and naming; AGENTS.md owns Kanz's platform boundaries.
+The standard guides placement and naming; AGENTS.md owns Oracle's platform boundaries.
 Use this skill for a layout review, component README reconciliation or directory
 migration. An ordinary implementation stays with its existing owner.
 

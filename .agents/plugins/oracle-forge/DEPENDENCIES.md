@@ -13,7 +13,7 @@ agent scheduler or project-memory database.
 | Python 3.10+ standard library | Package, provenance, installation and evidence-helper checks; no third-party Python package. |
 | Node.js on Linux | Tests for the bundled security report validators, which require protected-input facilities unavailable on Windows. |
 
-Individual Kanz components supply their own build/test tools and real disposable
+Individual Oracle components supply their own build/test tools and real disposable
 dependencies. A missing broker, database, browser or native toolchain limits the
 claim that can be verified; Forge does not replace those dependencies.
 Native worker tools are optional and used only under authorized parallel scope.

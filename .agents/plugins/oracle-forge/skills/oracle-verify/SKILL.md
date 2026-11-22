@@ -1,6 +1,6 @@
 ---
 name: oracle-verify
-description: Verify a Oracle change or issue acceptance without confusing local tests, CI, real dependencies, and production authority.
+description: Verify an Oracle change or issue acceptance without confusing local tests, CI, real dependencies, and production authority.
 ---
 
 # Choose evidence that proves the claim
