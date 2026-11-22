@@ -2,12 +2,14 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error};
 
 /// Nonnegative spot amounts with eight decimal places, represented as integer atoms.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct Amount(pub(crate) u64);
+pub struct Amount(u64);
 
 const UNIT: u64 = 100_000_000;
 
 impl Amount {
-    fn parse(text: &str) -> Option<Self> {
+    pub const ZERO: Self = Self(0);
+
+    pub fn parse(text: &str) -> Option<Self> {
         let (whole, fraction) = match text.split_once('.') {
             Some((whole, fraction)) if !fraction.is_empty() => (whole, fraction),
             Some(_) => return None,
@@ -28,11 +30,11 @@ impl Amount {
         Some(Self(atoms))
     }
 
-    pub(crate) fn aligns(self, step: Self) -> bool {
+    pub fn aligns(self, step: Self) -> bool {
         step.0 != 0 && self.0.is_multiple_of(step.0)
     }
 
-    pub(crate) fn valuation(self, price: Self, cash: Self) -> Result<(String, String), String> {
+    pub fn valuation(self, price: Self, cash: Self) -> Result<(String, String), String> {
         let value = u128::from(self.0) * u128::from(price.0);
         let nav = value
             .checked_add(u128::from(cash.0) * u128::from(UNIT))
