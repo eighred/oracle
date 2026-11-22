@@ -318,12 +318,66 @@ pub(super) async fn community(
     response("published_baskets_v1", &HeaderMap::new(), result)
 }
 
+fn retain_member_rows(object: &mut serde_json::Map<String, Value>, key: &str, fields: &[&str]) {
+    let Some(value) = object.get_mut(key) else {
+        return;
+    };
+    let Some(rows) = value.as_array_mut() else {
+        *value = json!([]);
+        return;
+    };
+    rows.retain_mut(|row| {
+        let Some(values) = row.as_object_mut() else {
+            return false;
+        };
+        values.retain(|name, value| {
+            fields.contains(&name.as_str()) && (value.is_string() || value.is_number())
+        });
+        true
+    });
+}
+
+fn member_receipt(value: &mut Value) {
+    let Some(receipt) = value.as_object_mut() else {
+        *value = Value::Null;
+        return;
+    };
+    receipt.retain(|key, v| match key.as_str() {
+        "model" => v == "basket_paper_v1",
+        "asOfMs" => v.is_u64(),
+        "navBefore" | "nav" | "cash" | "fees" | "spread" => v.is_string(),
+        "holdings" | "fills" => v.is_array(),
+        _ => false,
+    });
+    retain_member_rows(
+        receipt,
+        "fills",
+        &[
+            "venue",
+            "pair",
+            "targetBps",
+            "before",
+            "after",
+            "mark",
+            "step",
+            "side",
+            "quantity",
+            "price",
+            "fee",
+        ],
+    );
+}
+
 /// Present stable routing references to members. Internal receipts retain the original identifiers.
 pub(super) fn member_market_view(value: &mut Value) {
     match value {
         Value::Object(obj) => {
             obj.remove("evidence");
             obj.remove("market_id");
+            if let Some(receipt) = obj.get_mut("receipt") {
+                member_receipt(receipt);
+            }
+            retain_member_rows(obj, "holdings", &["venue", "pair", "quantity"]);
             if let Some(venue) = obj.get_mut("venue") {
                 *venue = match venue.as_str() {
                     Some("binance") => json!("s1"),
@@ -331,12 +385,16 @@ pub(super) fn member_market_view(value: &mut Value) {
                     _ => Value::Null,
                 };
             }
-            if obj
-                .get("note")
-                .and_then(Value::as_str)
-                .is_some_and(names_provider)
+            if let Some(note) = obj.get_mut("note")
+                && let Some(reason) = note.as_str()
             {
-                obj.insert("note".into(), json!("Waiting for eligible market data."));
+                *note = json!(match reason {
+                    "Insufficient cash after modeled costs" =>
+                        "Insufficient cash after modeled costs.",
+                    "Price or held quantity is outside current venue increments" =>
+                        "The current price or quantity is outside the permitted increments.",
+                    _ => "The basket update is pending.",
+                });
             }
             for child in obj.values_mut() {
                 member_market_view(child);
@@ -369,6 +427,22 @@ pub(super) fn member_advisory(mut advisory: Value) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn member_history_discards_unrecognized_routing_metadata() {
+        let mut statement = json!({"note":"future-adapter returned an internal error",
+            "receipt":{"futureRoute":"private","fees":"5","spread":"1",
+                "fills":[{"side":"buy","quantity":"1","pair":"BTC/USD","price":"55000","fee":"5","exchangeAccount":"private","venue":"okx"}],
+                "holdings":[{"pair":"BTC/USD","quantity":"1","venue":"binance","internalMarket":"private"}]}});
+        member_market_view(&mut statement);
+        assert_eq!(
+            statement,
+            json!({"note":"The basket update is pending.",
+            "receipt":{"fees":"5","spread":"1",
+                "fills":[{"side":"buy","quantity":"1","pair":"BTC/USD","price":"55000","fee":"5","venue":"s2"}],
+                "holdings":[{"pair":"BTC/USD","quantity":"1","venue":"s1"}]}})
+        );
+    }
 
     #[test]
     fn member_commentary_omits_internal_names_and_model_aliases() {
