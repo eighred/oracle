@@ -158,7 +158,7 @@ async function nativeRead(path: string, init: RequestInit, auth: string) {
     responseType: "text",
     disableRedirects: true,
     connectTimeout: 10000,
-    readTimeout: 30000,
+    readTimeout: path === "/api/v1/me/wallet-risk" ? 70000 : 30000,
   });
   init.signal?.throwIfAborted();
   const options = { status: response.status, headers: response.headers };

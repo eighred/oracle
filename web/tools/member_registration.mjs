@@ -101,6 +101,12 @@ try {
     location.hash = "profile";
   });
   await page.getByRole("heading", { name: "Balance overview" }).waitFor();
+  assert.equal(await page.locator('a[href="#settings"]').count(), 0);
+  await page.evaluate(() => { location.hash = "settings"; });
+  await page.waitForFunction(() => document.title.startsWith("Discover markets"));
+  assert.equal(await page.getByRole("heading", { name: "Company exchange connections" }).count(), 0);
+  await page.evaluate(() => { location.hash = "profile"; });
+  await page.getByRole("heading", { name: "Balance overview" }).waitFor();
   const profile = await (
     await page.request.get(origin + "/api/profile", { headers })
   ).json();

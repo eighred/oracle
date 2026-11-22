@@ -60,10 +60,10 @@ async function send(confirm = false) {
         (
           {
             401: "Sign in to trade with paper funds.",
-            409: "The quote expired or the venue changed. Request a new quote.",
+            409: "This quote is no longer available. Request a new quote.",
             422: confirm
               ? "Insufficient paper balance or holdings."
-              : "Check the quantity and venue increments.",
+              : "Check the quantity and the permitted order size.",
             503: "No fresh, eligible book level covers this quantity.",
           } as Record<number, string>
         )[res.status] ?? "Paper trade unavailable.",
@@ -120,7 +120,7 @@ async function send(confirm = false) {
       <dl>
         <dt>Customer price</dt>
         <dd>{{ ticket.price }} {{ ticket.currency }}</dd>
-        <dt>Modeled venue fee · 10 bps</dt>
+        <dt>Trading fee · 10 bps</dt>
         <dd>{{ ticket.fee }} {{ ticket.currency }}</dd>
         <dt>Eighred spread included in price</dt>
         <dd>{{ ticket.spread }} {{ ticket.currency }}</dd>

@@ -3,6 +3,7 @@ import { apiFetch } from "./api";
 import { onMounted, onBeforeUnmount, computed, ref } from "vue";
 import TraderFeed from "./TraderFeed.vue";
 import AccountPreview from "./AccountPreview.vue";
+import WalletRisk from "./WalletRisk.vue";
 import Icon from "./Icon.vue";
 
 type Balance = {
@@ -263,6 +264,7 @@ onBeforeUnmount(() => {
             </dd>
           </div>
         </dl>
+        <WalletRisk :key="data.principal + '/' + currency" :currency="currency" />
         <p v-if="balance.spotValue && Number(balance.spotValue) > 0" class="caption">
           Spot positions start at their paper fill price. Each completed minute
           can update them to the highest available closing price for the pair.
