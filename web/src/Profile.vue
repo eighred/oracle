@@ -233,7 +233,7 @@ onBeforeUnmount(() => {
         </p>
         <dl class="values">
           <div v-if="balance.spotValue && Number(balance.spotValue) > 0">
-            <dt>Spot holdings</dt>
+            <dt>Spot holdings <small>· indicative value</small></dt>
             <dd>
               {{ displayAmount(balance.spotValue, currency) }} {{ currency }}
             </dd>
@@ -263,6 +263,10 @@ onBeforeUnmount(() => {
             </dd>
           </div>
         </dl>
+        <p v-if="balance.spotValue && Number(balance.spotValue) > 0" class="caption">
+          Spot positions start at their paper fill price. Each completed minute
+          can update them to the highest available closing price for the pair.
+        </p>
       </div>
       <p v-else>
         Your wallet is empty. Add paper funds in the currency you want to use.

@@ -105,8 +105,10 @@ def main():
             sql(migration.with_name("009_community.sql").read_text())
             sql(migration.with_name("010_basket_venue_policy.sql").read_text())
             sql(migration.with_name("011_watchlist.sql").read_text())
+            sql(migration.with_name("012_spot_valuation.sql").read_text())
             if args.check is not None:
                 sql((migration.parents[1] / "tests/spot_ticket.sql").read_text())
+                sql((migration.parents[1] / "tests/spot_marks.sql").read_text())
             if args.platform_admin or args.check is not None:
                 sql("INSERT INTO oracle_admin.administrators VALUES ('operator')")
             if args.basket_curator or args.check is not None:

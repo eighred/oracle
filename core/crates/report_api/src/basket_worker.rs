@@ -242,6 +242,14 @@ pub(super) async fn run(client: Client, fixture: bool) -> Result<(), &'static st
     if !allowed {
         return Err("A restricted basket worker login is required");
     }
+    if fixture {
+        return baskets(&client, true).await;
+    }
+    tokio::try_join!(baskets(&client, false), super::spot_marks::run(&client))?;
+    Ok(())
+}
+
+async fn baskets(client: &Client, fixture: bool) -> Result<(), &'static str> {
     loop {
         let raw: Option<String> = client
             .query_one("SELECT oracle_basket_paper.claim()::text", &[])
