@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+import Icon from "./Icon.vue";
 import EquityChart from "./EquityChart.vue";
 import {
   clock,
@@ -28,8 +29,46 @@ function select(rule: Rule) {
   active.value = rule;
   index.value = 0;
 }
+const views = [
+  { id: "overview", title: "Portfolio review", icon: "Chart" },
+  { id: "strategies", title: "Strategy comparison", icon: "Compare" },
+  { id: "ledger", title: "Settlement ledger", icon: "Notebook" },
+] as const;
+function currentView() {
+  return (
+    views.find((item) => "#" + item.id === window.location.hash) ?? views[0]
+  );
+}
+const view = ref(currentView());
+const collapsed = ref(false);
+const breakpoint = window.matchMedia("(max-width: 760px)");
+const narrow = ref(breakpoint.matches);
+const mobileMenu = ref<HTMLDialogElement>();
+const inspector = ref<HTMLDialogElement>();
+const heading = ref<HTMLHeadingElement>();
+const inspection = ref<"posting" | "provenance">("provenance");
+function navigate() {
+  view.value = currentView();
+  mobileMenu.value?.close();
+  inspector.value?.close();
+  nextTick(() => heading.value?.focus());
+}
+function resize() {
+  narrow.value = breakpoint.matches;
+  mobileMenu.value?.close();
+}
+function toggleMenu() {
+  if (narrow.value) mobileMenu.value?.showModal();
+  else collapsed.value = !collapsed.value;
+}
+function inspect(kind: "posting" | "provenance", position = 0) {
+  inspection.value = kind;
+  index.value = position;
+  inspector.value?.showModal();
+}
 async function refresh() {
   if (pending.value) return;
+  inspector.value?.close();
   pending.value = true;
   data.value = undefined;
   revision.value = "";
@@ -75,237 +114,380 @@ async function refresh() {
     pending.value = false;
   }
 }
-onMounted(refresh);
+onMounted(() => {
+  window.addEventListener("hashchange", navigate);
+  breakpoint.addEventListener("change", resize);
+  refresh();
+});
+onBeforeUnmount(() => {
+  window.removeEventListener("hashchange", navigate);
+  breakpoint.removeEventListener("change", resize);
+});
 </script>
 <template>
-  <a class="skip" href="#overview">Skip to portfolio</a>
-  <header>
-    <div class="bar">
-      <a class="brand" href="#overview"
-        ><span class="brand-mark" aria-hidden="true"></span>Oracle</a
-      >
-      <nav aria-label="Workstation">
-        <a href="#overview">Portfolio</a><a href="#comparison">Strategies</a
-        ><a href="#ledger">Ledger</a>
-      </nav>
-      <span class="owner">Eighred Research</span>
-    </div>
-  </header>
-  <main id="overview">
-    <div class="heading">
-      <div>
-        <div class="context">{{ portfolio }}</div>
-        <h1>Portfolio review</h1>
-      </div>
-      <button class="refresh" :disabled="pending" @click="refresh">
-        Refresh report
-      </button>
-    </div>
-    <p v-if="status" role="status" class="notice">{{ status }}</p>
-    <template v-if="data && snap && run && row">
-      <p class="asof">
-        <span class="dot"></span> Archived synthetic snapshot <span>·</span>
-        <time>{{ utc(snap.valid_at_ms) }}</time>
-      </p>
-      <section class="metrics" aria-label="Opening portfolio and risk">
-        <div>
-          <span>Opening NAV</span
-          ><strong
-            >{{ snap.nav }} <small>{{ snap.quote }}</small></strong
-          >
-          <p>
-            {{ snap.quantity }} {{ snap.base }} + {{ snap.cash }}
-            {{ snap.quote }} cash
-          </p>
-        </div>
-        <div>
-          <span>Spot mark</span
-          ><strong
-            >{{ snap.mark }} <small>{{ snap.quote }}</small></strong
-          >
-          <p>{{ snap.base }} / {{ snap.quote }}</p>
-        </div>
-        <div>
-          <span>One-day VaR</span
-          ><strong
-            >{{ data.risk.value_at_risk ?? "Unavailable" }}
-            <small v-if="data.risk.value_at_risk">{{
-              snap.quote
-            }}</small></strong
-          >
-          <p>{{ data.risk.confidence_bps / 100 }}% confidence</p>
-        </div>
-        <div>
-          <span>Expected shortfall</span
-          ><strong
-            >{{ data.risk.expected_shortfall ?? "Unavailable" }}
-            <small v-if="data.risk.expected_shortfall">{{
-              snap.quote
-            }}</small></strong
-          >
-          <p>{{ data.risk.sample_size ?? 0 }} synthetic scenarios</p>
-        </div>
-      </section>
-      <section id="comparison" class="comparison">
-        <div class="chart panel">
-          <h2>Portfolio value</h2>
-          <p class="caption">Minute-close NAV · {{ snap.quote }}</p>
-          <EquityChart :runs="data.backtest.runs" :active="active" />
-          <div class="times">
-            <span>{{ clock(data.backtest.warmup_last_ms) }}</span
-            ><span>{{ clock(data.backtest.holdout_last_ms) }} UTC</span>
-          </div>
-        </div>
-        <div class="summary panel">
-          <h2>Strategy comparison</h2>
-          <p class="caption">Net P&amp;L after costs · {{ snap.quote }}</p>
+  <a class="skip" href="#workstation" @click.prevent="heading?.focus()"
+    >Skip to workspace</a
+  >
+  <div class="shell" :class="{ collapsed: collapsed && !narrow }">
+    <dialog
+      ref="mobileMenu"
+      class="menu-dialog"
+      aria-label="Workstation navigation"
+      @click.self="mobileMenu?.close()"
+    >
+      <div id="mobile-navigation"></div>
+    </dialog>
+    <Teleport to="#mobile-navigation" defer :disabled="!narrow">
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true"></span><b>Oracle</b>
           <button
-            v-for="s in data.backtest.runs"
-            :key="s.rule"
-            class="strategy"
-            :style="{ '--series': `var(${colors[s.rule]})` }"
-            :aria-pressed="active === s.rule"
-            @click="select(s.rule)"
+            v-if="narrow"
+            class="tool menu-close"
+            aria-label="Close navigation"
+            @click="mobileMenu?.close()"
           >
-            <span
-              ><i aria-hidden="true"></i>{{ names[s.rule]
-              }}<small v-if="s.rule === data.backtest.benchmark"
-                >Benchmark</small
-              ></span
-            >
-            <b>{{ s.net_pnl }}</b>
+            <Icon name="XCrossed" />
           </button>
-          <div class="drawdown">
-            <span>Max drawdown · {{ names[active] }}</span
-            ><strong :title="run.max_drawdown"
-              >{{ (numeric(run.max_drawdown) * 100).toFixed(2) }}%</strong
-            >
-          </div>
         </div>
-      </section>
-      <section id="ledger" class="ledger panel">
-        <h2>Settlement ledger</h2>
-        <p class="caption">
-          {{ names[active] }} · {{ run.ledger.length }} settlements · times in
-          UTC
-        </p>
-        <div class="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Close</th>
-                <th>Action</th>
-                <th>Mark</th>
-                <th>Cash</th>
-                <th>{{ snap.base }}</th>
-                <th>NAV</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="(r, i) in run.ledger"
-                :key="r.valuation_close_ms"
-                :class="{ selected: index === i }"
+        <nav aria-label="Workspace">
+          <p class="nav-caption">Workspace</p>
+          <a
+            v-for="item in views"
+            :key="item.id"
+            :href="'#' + item.id"
+            :title="item.title"
+            :aria-label="item.title"
+            :aria-current="view.id === item.id ? 'page' : undefined"
+            @click="mobileMenu?.close()"
+          >
+            <Icon :name="item.icon" /><span>{{ item.title }}</span>
+          </a>
+        </nav>
+        <div class="identity">
+          <b aria-hidden="true">E</b>
+          <div>Eighred Research<small>Research workspace</small></div>
+        </div>
+      </aside>
+    </Teleport>
+    <div class="workspace">
+      <header class="toolbar">
+        <button
+          class="tool"
+          aria-label="Toggle navigation"
+          :aria-expanded="narrow ? undefined : !collapsed"
+          @click="toggleMenu"
+        >
+          <Icon name="Sidebar" />
+        </button>
+        <span class="mobile-brand"
+          ><span class="brand-mark" aria-hidden="true"></span>Oracle</span
+        ><span class="crumb"><Icon name="Folder" />{{ portfolio }}</span>
+        <Icon name="ChevronRightMd" /><span class="current">{{
+          view.title
+        }}</span>
+        <div class="actions">
+          <button
+            class="tool"
+            title="Refresh report"
+            aria-label="Refresh report"
+            :disabled="pending"
+            @click="refresh"
+          >
+            <Icon name="Regenerate" />
+          </button>
+          <button
+            class="tool"
+            title="Report provenance"
+            aria-label="Report provenance"
+            :disabled="!data"
+            aria-haspopup="dialog"
+            @click="inspect('provenance')"
+          >
+            <Icon name="Info" />
+          </button>
+        </div>
+      </header>
+      <main id="workstation">
+        <h1 ref="heading" tabindex="-1">{{ view.title }}</h1>
+        <p v-if="status" role="status" class="notice">{{ status }}</p>
+        <template v-if="data && snap && run && row">
+          <p class="asof">
+            <Icon name="Clock" />Archived synthetic snapshot <span>·</span
+            ><time>{{ utc(snap.valid_at_ms) }}</time>
+          </p>
+          <section
+            v-if="view.id === 'overview'"
+            class="metrics"
+            aria-label="Opening portfolio and risk"
+          >
+            <div>
+              <span>Opening NAV</span
+              ><strong
+                >{{ snap.nav }} <small>{{ snap.quote }}</small></strong
               >
-                <td>
-                  <button
-                    :aria-pressed="index === i"
-                    :aria-label="
-                      'Inspect settlement ' + clock(r.valuation_close_ms)
-                    "
-                    @click="index = i"
-                  >
-                    {{ clock(r.valuation_close_ms) }}
-                  </button>
-                </td>
-                <td>
-                  {{
-                    r.posting.state === "filled"
-                      ? r.posting.fill.side
-                      : r.posting.state
-                  }}
-                </td>
-                <td>{{ r.valuation_mark }}</td>
-                <td>{{ r.cash }}</td>
-                <td>{{ r.quantity }}</td>
-                <td>{{ r.nav }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <div class="detail" aria-live="polite">
-          <div>
-            <h3>Posting detail</h3>
-            <p>
-              {{ clock(row.valuation_close_ms) }} UTC · {{ names[active] }}
+              <p>
+                {{ snap.quantity }} {{ snap.base }} + {{ snap.cash }}
+                {{ snap.quote }} cash
+              </p>
+            </div>
+            <div>
+              <span>Spot mark</span
+              ><strong
+                >{{ snap.mark }} <small>{{ snap.quote }}</small></strong
+              >
+              <p>{{ snap.base }} / {{ snap.quote }}</p>
+            </div>
+            <div>
+              <span>One-day VaR</span
+              ><strong
+                >{{ data.risk.value_at_risk ?? "Unavailable" }}
+                <small v-if="data.risk.value_at_risk">{{
+                  snap.quote
+                }}</small></strong
+              >
+              <p>{{ data.risk.confidence_bps / 100 }}% confidence</p>
+            </div>
+            <div>
+              <span>Expected shortfall</span
+              ><strong
+                >{{ data.risk.expected_shortfall ?? "Unavailable" }}
+                <small v-if="data.risk.expected_shortfall">{{
+                  snap.quote
+                }}</small></strong
+              >
+              <p>{{ data.risk.sample_size ?? 0 }} synthetic scenarios</p>
+            </div>
+          </section>
+          <section class="chart panel" v-if="view.id !== 'ledger'">
+            <h2>Portfolio value</h2>
+            <p class="caption">Minute-close NAV · {{ snap.quote }}</p>
+            <EquityChart :runs="data.backtest.runs" :active="active" />
+            <div class="times">
+              <span>{{ clock(data.backtest.warmup_last_ms) }}</span
+              ><span>{{ clock(data.backtest.holdout_last_ms) }} UTC</span>
+            </div>
+
+            <div class="legend" aria-label="Chart strategies">
+              <button
+                v-for="s in data.backtest.runs"
+                :key="s.rule"
+                :aria-pressed="active === s.rule"
+                :style="{ '--series': 'var(' + colors[s.rule] + ')' }"
+                @click="select(s.rule)"
+              >
+                <i aria-hidden="true"></i>{{ names[s.rule] }}
+              </button>
+            </div>
+          </section>
+          <section v-if="view.id === 'strategies'" class="summary panel">
+            <h2>Strategy results</h2>
+            <p class="caption">Net P&amp;L after costs · {{ snap.quote }}</p>
+            <button
+              v-for="s in data.backtest.runs"
+              :key="s.rule"
+              class="strategy"
+              :style="{ '--series': `var(${colors[s.rule]})` }"
+              :aria-pressed="active === s.rule"
+              @click="select(s.rule)"
+            >
+              <span
+                ><i aria-hidden="true"></i>{{ names[s.rule]
+                }}<small v-if="s.rule === data.backtest.benchmark"
+                  >Benchmark</small
+                ></span
+              >
+              <b>{{ s.net_pnl }}</b>
+            </button>
+            <div class="drawdown">
+              <span>Max drawdown · {{ names[active] }}</span
+              ><strong :title="run.max_drawdown"
+                >{{ (numeric(run.max_drawdown) * 100).toFixed(2) }}%</strong
+              >
+            </div>
+            <a class="next" href="#ledger"
+              >View settlements <Icon name="ChevronRightMd"
+            /></a>
+          </section>
+          <section v-if="view.id === 'ledger'" class="ledger panel">
+            <div class="picker">
+              <label for="ledger-strategy">Strategy</label
+              ><select
+                id="ledger-strategy"
+                :value="active"
+                @change="
+                  select(($event.target as HTMLSelectElement).value as Rule)
+                "
+              >
+                <option
+                  v-for="s in data.backtest.runs"
+                  :key="s.rule"
+                  :value="s.rule"
+                >
+                  {{ names[s.rule] }}
+                </option>
+              </select>
+            </div>
+            <p class="caption">
+              {{ names[active] }} · {{ run.ledger.length }} settlements · times
+              in UTC
             </p>
-          </div>
-          <dl>
-            <dt>Decision / signal mark</dt>
-            <dd>
-              {{ clock(row.decision_ms) }} · {{ row.signal_mark }}
-              {{ snap.quote }}
-            </dd>
-            <dt>Settlement known at</dt>
-            <dd>{{ utc(row.valuation_known_ms) }}</dd>
-            <template v-if="row.posting.state === 'filled'"
-              ><dt>Fill</dt>
-              <dd>
-                {{ row.posting.fill.side }} {{ row.posting.fill.quantity }}
-                {{ snap.base }} @ {{ row.posting.fill.price }} {{ snap.quote }}
-              </dd>
-              <dt>Fee / cash posting</dt>
-              <dd>
-                {{ row.posting.fill.fee }} / {{ row.posting.fill.cash_delta }}
-                {{ snap.quote }}
-              </dd>
-              <dt>Spread / slippage / tick rounding</dt>
-              <dd>
-                {{ row.posting.fill.half_spread_cost }} /
-                {{ row.posting.fill.slippage_cost }} /
-                {{ row.posting.fill.tick_rounding_cost }} {{ snap.quote }}
-              </dd></template
-            >
-            <template v-else
-              ><dt>Decision</dt>
-              <dd>
-                {{
-                  row.posting.state === "rejected"
-                    ? row.posting.reason
-                    : "Hold position"
-                }}
-              </dd></template
-            >
-            <dt>Realized / unrealized P&amp;L</dt>
-            <dd>
-              {{ row.realized_pnl }} / {{ row.unrealized_pnl }} {{ snap.quote }}
-            </dd>
-          </dl>
-        </div>
-      </section>
-      <details class="provenance panel">
-        <summary>Report provenance</summary>
-        <dl>
-          <dt>Known at</dt>
-          <dd>{{ utc(snap.known_at_ms) }}</dd>
-          <dt>Opening observation</dt>
-          <dd>{{ snap.observation_id }}</dd>
-          <dt>Opening dataset</dt>
-          <dd>{{ snap.dataset_sha256 }}</dd>
-          <dt>Risk history</dt>
-          <dd>{{ data.risk.history_sha256 }}</dd>
-          <dt>Backtest source</dt>
-          <dd>{{ data.backtest.source_sha256 }}</dd>
-          <dt>Ledger</dt>
-          <dd>{{ data.backtest.ledger_sha256 }}</dd>
-          <dt>Report</dt>
-          <dd>
-            <a :href="endpoint + revision" download="oracle-report.json">{{
-              revision
-            }}</a>
-          </dd>
-        </dl>
-      </details>
-    </template>
-  </main>
+            <div class="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Close</th>
+                    <th>Action</th>
+                    <th>Mark</th>
+                    <th>Cash</th>
+                    <th>{{ snap.base }}</th>
+                    <th>NAV</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(r, i) in run.ledger" :key="r.valuation_close_ms">
+                    <td>
+                      <button
+                        aria-haspopup="dialog"
+                        :aria-label="
+                          'Inspect settlement ' + clock(r.valuation_close_ms)
+                        "
+                        @click="inspect('posting', i)"
+                      >
+                        {{ clock(r.valuation_close_ms) }}
+                      </button>
+                    </td>
+                    <td>
+                      {{
+                        r.posting.state === "filled"
+                          ? r.posting.fill.side
+                          : r.posting.state
+                      }}
+                    </td>
+                    <td>{{ r.valuation_mark }}</td>
+                    <td>{{ r.cash }}</td>
+                    <td>{{ r.quantity }}</td>
+                    <td>{{ r.nav }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+          <section
+            v-if="view.id === 'overview'"
+            class="review-links"
+            aria-label="Explore this report"
+          >
+            <a href="#strategies"
+              ><Icon name="Compare" />Strategy comparison
+              <Icon name="ChevronRightMd"
+            /></a>
+            <a href="#ledger"
+              ><Icon name="Notebook" />Settlement ledger
+              <Icon name="ChevronRightMd"
+            /></a>
+          </section>
+          <dialog
+            ref="inspector"
+            class="inspector"
+            aria-labelledby="inspector-title"
+            @click.self="inspector?.close()"
+          >
+            <div class="sheet">
+              <header>
+                <h2 id="inspector-title">
+                  {{
+                    inspection === "posting"
+                      ? "Posting detail"
+                      : "Report provenance"
+                  }}
+                </h2>
+                <button
+                  class="tool"
+                  aria-label="Close details"
+                  autofocus
+                  @click="inspector?.close()"
+                >
+                  <Icon name="XCrossed" />
+                </button>
+              </header>
+              <div class="detail" v-if="inspection === 'posting'">
+                <div>
+                  <p>
+                    {{ clock(row.valuation_close_ms) }} UTC ·
+                    {{ names[active] }}
+                  </p>
+                </div>
+                <dl>
+                  <dt>Decision / signal mark</dt>
+                  <dd>
+                    {{ clock(row.decision_ms) }} · {{ row.signal_mark }}
+                    {{ snap.quote }}
+                  </dd>
+                  <dt>Settlement known at</dt>
+                  <dd>{{ utc(row.valuation_known_ms) }}</dd>
+                  <template v-if="row.posting.state === 'filled'"
+                    ><dt>Fill</dt>
+                    <dd>
+                      {{ row.posting.fill.side }}
+                      {{ row.posting.fill.quantity }} {{ snap.base }} @
+                      {{ row.posting.fill.price }} {{ snap.quote }}
+                    </dd>
+                    <dt>Fee / cash posting</dt>
+                    <dd>
+                      {{ row.posting.fill.fee }} /
+                      {{ row.posting.fill.cash_delta }}
+                      {{ snap.quote }}
+                    </dd>
+                    <dt>Spread / slippage / tick rounding</dt>
+                    <dd>
+                      {{ row.posting.fill.half_spread_cost }} /
+                      {{ row.posting.fill.slippage_cost }} /
+                      {{ row.posting.fill.tick_rounding_cost }} {{ snap.quote }}
+                    </dd></template
+                  >
+                  <template v-else
+                    ><dt>Decision</dt>
+                    <dd>
+                      {{
+                        row.posting.state === "rejected"
+                          ? row.posting.reason
+                          : "Hold position"
+                      }}
+                    </dd></template
+                  >
+                  <dt>Realized / unrealized P&amp;L</dt>
+                  <dd>
+                    {{ row.realized_pnl }} / {{ row.unrealized_pnl }}
+                    {{ snap.quote }}
+                  </dd>
+                </dl>
+              </div>
+
+              <dl class="provenance" v-else>
+                <dt>Known at</dt>
+                <dd>{{ utc(snap.known_at_ms) }}</dd>
+                <dt>Opening observation</dt>
+                <dd>{{ snap.observation_id }}</dd>
+                <dt>Opening dataset</dt>
+                <dd>{{ snap.dataset_sha256 }}</dd>
+                <dt>Risk history</dt>
+                <dd>{{ data.risk.history_sha256 }}</dd>
+                <dt>Backtest source</dt>
+                <dd>{{ data.backtest.source_sha256 }}</dd>
+                <dt>Ledger</dt>
+                <dd>{{ data.backtest.ledger_sha256 }}</dd>
+                <dt>Report</dt>
+                <dd>
+                  <a :href="endpoint + revision" download="oracle-report.json"
+                    ><Icon name="Download" /> {{ revision }}</a
+                  >
+                </dd>
+              </dl>
+            </div>
+          </dialog></template
+        >
+      </main>
+    </div>
+  </div>
 </template>
