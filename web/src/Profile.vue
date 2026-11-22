@@ -321,7 +321,7 @@ onBeforeUnmount(() => {
       <div v-for="c in coins" :key="c.asset + c.venue" class="row">
         <div>
           <strong>{{ c.asset }}</strong>
-          <p class="caption">{{ c.venue }} · {{ date(c.asOf) }}</p>
+          <p class="caption">{{ date(c.asOf) }}</p>
         </div>
         <div class="right">
           <strong>{{ c.quantity }} {{ c.asset }}</strong>
@@ -379,7 +379,6 @@ onBeforeUnmount(() => {
             :key="(f.venue ?? '') + f.pair"
           >
             {{ f.side }} {{ f.quantity }} {{ f.pair }} at {{ f.price }} ·
-            <template v-if="f.venue">{{ f.venue }} · </template>
             Fee {{ f.fee }} {{ e.currency }}
           </p>
         </details>

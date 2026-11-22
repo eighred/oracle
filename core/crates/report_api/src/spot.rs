@@ -97,7 +97,7 @@ async fn calculate(input: &Request) -> Result<Value, &'static str> {
     let positions=input.positions.iter().zip(&histories).zip(contributions).map(|((p,h),c)|
         json!({"venue":h.venue,"pair":p.pair,"market_id":h.market_id,"quantity":p.quantity,"tick":h.tick,
             "quantity_step":h.quantity_step,"mark":h.closes.last(),"shock_bps":p.shock_bps,"stress_pnl":c.stress_pnl,"exposure":c.exposure,
-            "received_ms":h.received_ms,"metadata_sha256":h.metadata_sha256,"candles_sha256":h.candles_sha256})).collect::<Vec<_>>();
+            "expected_shortfall_contribution":c.expected_shortfall,"received_ms":h.received_ms,"metadata_sha256":h.metadata_sha256,"candles_sha256":h.candles_sha256})).collect::<Vec<_>>();
     Ok(
         json!({"schema_version":1,"source":"public_spot_research","size_unit":input.size_unit,"quote":quote,
         "first_open_ms":histories[0].first_open_ms,"as_of_ms":last+60_000,
@@ -141,7 +141,7 @@ pub(super) async fn handle(
     State(db): State<Database>,
     Path(portfolio): Path<String>,
     headers: HeaderMap,
-    Json(input): Json<Request>,
+    payload: Result<Json<Request>, axum::extract::rejection::JsonRejection>,
 ) -> Response {
     static SLOTS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(2);
     let Some(login) = identity(&headers) else {
@@ -157,6 +157,13 @@ pub(super) async fn handle(
     if let Err(status) = access(&db, &portfolio, login.clone()).await {
         return status.into_response();
     }
+    let Ok(Json(input)) = payload else {
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(json!({"reason":"Invalid spot risk scenario."})),
+        )
+            .into_response();
+    };
     let Ok(_slot) = SLOTS.try_acquire() else {
         return StatusCode::TOO_MANY_REQUESTS.into_response();
     };
@@ -169,8 +176,27 @@ pub(super) async fn handle(
         }
         report["advisory"] = crate::advisory::explain(report).await;
     }
+    let member = login.0.starts_with('@');
     if let Err(status) = access(&db, &portfolio, login).await {
         return status.into_response();
+    }
+    if member {
+        match &mut result {
+            Ok(value) => {
+                super::social::member_market_view(value);
+                if value
+                    .pointer("/advisory/text")
+                    .and_then(Value::as_str)
+                    .is_some_and(super::social::names_provider)
+                {
+                    value["advisory"] = json!({"state":"unavailable"});
+                }
+            }
+            Err(reason) if super::social::names_provider(reason) => {
+                *reason = "Market data unavailable."
+            }
+            Err(_) => {}
+        }
     }
     match result {
         Ok(value) => ([(header::CACHE_CONTROL, "no-store")], Json(value)).into_response(),

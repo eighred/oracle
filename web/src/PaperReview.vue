@@ -42,10 +42,11 @@ const loading = ref(false),
   revision = ref("");
 const active = ref<Rule>("momentum");
 const sourceNames: Record<string, string> = {
-  prospective_synthetic: "Prospective synthetic experiment",
-  ccxt_loopback_fixture: "CCXT Rust · synthetic venue",
-  ccxt_binance_spot: "CCXT Rust · Binance spot",
+  synthetic: "Prospective synthetic experiment",
+  fixture: "CCXT Rust · synthetic venue",
+  market: "Public spot market data",
 };
+const sourceLabel = ref("");
 const risk = computed(() => paper.value?.minute_risk?.by_rule[active.value]);
 const run = computed(() =>
   paper.value?.projection?.runs.find((item) => item.rule === active.value),
@@ -75,12 +76,13 @@ async function refresh() {
     }
     const p: Paper = await response.json(),
       id = response.headers.get("x-oracle-report-id");
+    const source = response.headers.get("x-oracle-paper-source") ?? "";
     if (
       !id ||
       !/^[a-f0-9]{64}$/.test(id) ||
       p.manifest.version !== 1 ||
       p.manifest.portfolio !== props.portfolio ||
-      !Object.hasOwn(sourceNames, p.manifest.source_kind) ||
+      !Object.hasOwn(sourceNames, source) ||
       !["complete", "missed", "canceled"].includes(p.state) ||
       (p.state === "complete" &&
         !p.projection?.runs.some(
@@ -90,6 +92,7 @@ async function refresh() {
       status.value = "Unsupported or incomplete paper report.";
       return;
     }
+    sourceLabel.value = sourceNames[source] ?? "";
     paper.value = p;
     revision.value = id;
     status.value = "";
@@ -106,7 +109,7 @@ defineExpose({ refresh, loading });
   <p v-if="status" role="status" class="notice">{{ status }}</p>
   <template v-if="paper">
     <p class="asof">
-      <Icon name="Clock" />{{ sourceNames[paper.manifest.source_kind] }} ·
+      <Icon name="Clock" />{{ sourceLabel }} ·
       {{ paper.state }}
     </p>
     <section class="panel">

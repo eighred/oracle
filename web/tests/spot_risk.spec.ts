@@ -33,6 +33,23 @@ test("risk rejects an unauthorized principal and a mixed currency scenario befor
 test("operator selects arbitrary spot pairs and inspects joint risk", async ({
   page,
 }) => {
+  await page.route("**/api/discover/markets/*", (route) => {
+    const pair = route.request().url().endsWith("s1")
+      ? "ALPHA/USDC"
+      : "BETA/USDC";
+    return route.fulfill({
+      json: [
+        {
+          pair,
+          quote: "USDC",
+          price: "10",
+          open: "10",
+          volume: 100,
+          ts: Date.now(),
+        },
+      ],
+    });
+  });
   await page.route("**" + endpoint, async (route) => {
     const request = route.request().postDataJSON();
     expect(request.positions.map((p: { pair: string }) => p.pair)).toEqual([
@@ -60,6 +77,7 @@ test("operator selects arbitrary spot pairs and inspects joint risk", async ({
           (p: { venue: string; pair: string }) => ({
             ...p,
             exposure: "10",
+            expected_shortfall_contribution: p.venue === "s2" ? "-1/3" : "5/3",
             mark: "10",
             stress_pnl: "-1",
             tick: "0.01",
@@ -79,7 +97,9 @@ test("operator selects arbitrary spot pairs and inspects joint risk", async ({
     page.getByRole("heading", { name: "Portfolio risk · USDC" }),
   ).toBeVisible();
   await expect(page.getByTitle("4/3")).toHaveText("1.33333333 USDC");
-  await page.getByText("okx · BETA/USDC").click();
+  await page.getByText("BETA/USDC", { exact: true }).click();
+  await expect(page.locator("body")).not.toContainText(/binance|okx/i);
+  await expect(page.getByTitle("-1/3")).toHaveText("−0.33333333");
   await expect(page.getByText("Candle receipt abc").last()).toBeVisible();
   await page.getByLabel("Quantity").first().fill("2");
   await expect(

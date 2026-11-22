@@ -1,6 +1,7 @@
 mod advisory;
 mod basket_worker;
 mod community;
+mod market_directory;
 mod member;
 mod news;
 mod paper;
@@ -192,7 +193,12 @@ async fn lookup(
         .start()
         .await
         .map_err(failed)?;
+    let member = login.0.starts_with('@');
     authorize(&tx, resource, login).await?;
+    // Original research receipts and their provider identifiers are operator-only.
+    if member {
+        return Err(StatusCode::FORBIDDEN);
+    }
     let row = tx.query_opt("SELECT report_id,payload FROM oracle_read.reports WHERE portfolio=$1 AND ($2='latest' OR report_id=$2)
         AND kind=$3 ORDER BY published_at DESC,report_id LIMIT 1",&[&resource,&version,&kind]).await.map_err(failed)?.ok_or(StatusCode::NOT_FOUND)?;
     let id: String = row.get(0);
@@ -219,14 +225,35 @@ async fn report(
         None => Err(StatusCode::UNAUTHORIZED),
     };
     let mut response = match result {
-        Ok((id, bytes)) => (
-            [
-                (header::CONTENT_TYPE.as_str(), "application/json"),
-                ("x-oracle-report-id", &id),
-            ],
-            bytes,
-        )
-            .into_response(),
+        Ok((id, bytes)) => {
+            let source = if kind == "paper" {
+                serde_json::from_slice::<serde_json::Value>(&bytes)
+                    .ok()
+                    .and_then(|paper| match paper["manifest"]["source_kind"].as_str()? {
+                        "prospective_synthetic" => Some("synthetic"),
+                        "ccxt_loopback_fixture" => Some("fixture"),
+                        "ccxt_binance_spot" => Some("market"),
+                        _ => None,
+                    })
+            } else {
+                None
+            };
+            let mut response = (
+                [
+                    (header::CONTENT_TYPE.as_str(), "application/json"),
+                    ("x-oracle-report-id", &id),
+                ],
+                bytes,
+            )
+                .into_response();
+            if let Some(source) = source {
+                response.headers_mut().insert(
+                    "x-oracle-paper-source",
+                    axum::http::HeaderValue::from_static(source),
+                );
+            }
+            response
+        }
         Err(StatusCode::UNAUTHORIZED) => (
             StatusCode::UNAUTHORIZED,
             [(
@@ -285,6 +312,7 @@ async fn run() -> Result<(), &'static str> {
                 )
                 .route("/api/discover/baskets", get(social::community))
                 .route("/api/discover/news", get(news::feed))
+                .route("/api/discover/markets/{route}", get(market_directory::feed))
                 .route(
                     "/api/platform-settings",
                     axum::routing::post(social::admin)

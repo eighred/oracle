@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { resolveRoutes } from "./market_directory";
 import { apiFetch, shareBase } from "./api";
 import { computed, onMounted, onBeforeUnmount, ref } from "vue";
 type Item = { venue: string; pair: string; bps: number };
@@ -178,7 +179,7 @@ function editor(b?: Basket) {
     ? b.items.map((i) => ({ ...i }))
     : [
         {
-          venue: props.initialPair?.venue ?? "binance",
+          venue: props.initialPair?.venue ?? "",
           pair: props.initialPair?.pair ?? "BTC/USDT",
           bps: 10000,
         },
@@ -193,7 +194,7 @@ async function save() {
       id: editId.value,
       revision: revision.value,
       name: title.value,
-      items: items.value,
+      items: await resolveRoutes(items.value),
     });
     await load();
     select(r.id);
@@ -292,14 +293,9 @@ onBeforeUnmount(() => clearInterval(refreshTimer));
       /></label>
       <div v-for="(item, i) in items" :key="i" class="basket-tools">
         <label
-          >Venue<select v-model="item.venue">
-            <option value="binance">Binance</option>
-            <option value="okx">OKX</option>
-          </select></label
-        >
-        <label
           >Spot pair<input
             v-model.trim="item.pair"
+            @input="item.venue = ''"
             required
             placeholder="BASE/QUOTE"
         /></label>
@@ -324,7 +320,7 @@ onBeforeUnmount(() => clearInterval(refreshTimer));
         <button
           type="button"
           :disabled="items.length >= 8"
-          @click="items.push({ venue: 'okx', pair: '', bps: 0 })"
+          @click="items.push({ venue: '', pair: '', bps: 0 })"
         >
           Add holding</button
         ><button :disabled="total !== 10000">Save basket</button
@@ -345,14 +341,12 @@ onBeforeUnmount(() => clearInterval(refreshTimer));
     <table>
       <thead>
         <tr>
-          <th>Venue</th>
           <th>Pair</th>
           <th>Weight</th>
         </tr>
       </thead>
       <tbody>
         <tr v-for="i in selected.items" :key="i.venue + i.pair">
-          <td>{{ i.venue }}</td>
           <td>{{ i.pair }}</td>
           <td>{{ i.bps / 100 }}%</td>
         </tr>
@@ -484,7 +478,7 @@ onBeforeUnmount(() => clearInterval(refreshTimer));
       <p v-if="a.note">{{ a.note }}</p>
       <ul v-if="a.holdings.length">
         <li v-for="h in a.holdings" :key="h.venue + h.pair">
-          {{ h.quantity }} {{ h.pair }} · {{ h.venue }}
+          {{ h.quantity }} {{ h.pair }}
         </li>
       </ul>
       <details v-if="a.receipt">
@@ -495,9 +489,8 @@ onBeforeUnmount(() => clearInterval(refreshTimer));
           {{ new Date(a.receipt.asOfMs).toISOString() }}
         </p>
         <p v-for="f in a.receipt.fills" :key="f.venue + f.pair">
-          {{ f.venue }} {{ f.pair }} · {{ f.side }} {{ f.quantity }} at
-          {{ f.price }} · Fee {{ f.fee }} {{ a.currency }} ·
-          {{ f.evidence.source }}
+          {{ f.pair }} · {{ f.side }} {{ f.quantity }} at {{ f.price }} · Fee
+          {{ f.fee }} {{ a.currency }}
         </p>
       </details>
       <button

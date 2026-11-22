@@ -100,14 +100,14 @@ const ranked = computed(() => matches.value.slice(0, limit.value));
 async function refresh() {
   if (pending.value) return;
   pending.value = true;
-  const venues = ["binance", "okx"] as const;
+  const venues = ["s1", "s2"] as const;
   const failed: string[] = [];
   await Promise.all(
     venues.map(async (venue) => {
       try {
         const snapshot = await listings(
           venue,
-          AbortSignal.any([controller.signal, AbortSignal.timeout(12000)]),
+          AbortSignal.any([controller.signal, AbortSignal.timeout(25000)]),
         );
         clock.value = Date.now();
         rows.value = [

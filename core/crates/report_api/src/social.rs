@@ -74,8 +74,9 @@ async fn apply(db: &Database, headers: &HeaderMap, input: Option<Value>) -> Resu
     let login = identity(headers).ok_or(StatusCode::UNAUTHORIZED)?;
     let mut client = db.lock().await;
     let tx = client.transaction().await.map_err(failure)?;
+    let member = login.0.starts_with('@');
     session(&tx, login).await?;
-    let result = if let Some(input) = input {
+    let mut result = if let Some(input) = input {
         let invalid = StatusCode::UNPROCESSABLE_ENTITY;
         let op = input["op"].as_str().ok_or(invalid)?;
         let mut p = if op == "unlock" {
@@ -93,6 +94,15 @@ async fn apply(db: &Database, headers: &HeaderMap, input: Option<Value>) -> Resu
             }
             "create" | "edit" => {
                 p["items"] = input["items"].clone();
+                if let Some(items) = p["items"].as_array_mut() {
+                    for item in items {
+                        match item["venue"].as_str() {
+                            Some("s1") => item["venue"] = json!("binance"),
+                            Some("s2") => item["venue"] = json!("okx"),
+                            _ => {}
+                        }
+                    }
+                }
                 p["name"] = input["name"].clone();
                 p["revision"] = input["revision"].clone();
             }
@@ -169,6 +179,9 @@ async fn apply(db: &Database, headers: &HeaderMap, input: Option<Value>) -> Resu
         serde_json::from_str(&raw).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
     };
     tx.commit().await.map_err(failure)?;
+    if member {
+        member_market_view(&mut result);
+    }
     Ok(result)
 }
 
@@ -210,7 +223,10 @@ async fn settings(db: &Database, headers: &HeaderMap, input: Value) -> Result<Va
         .map_err(failure)?
         .get(0);
     tx.commit().await.map_err(failure)?;
-    serde_json::from_str(&raw).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+    let mut settings: Value =
+        serde_json::from_str(&raw).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    settings["qualified"] = json!(["binance", "okx"]);
+    Ok(settings)
 }
 
 #[derive(serde::Deserialize)]
@@ -227,6 +243,7 @@ pub(super) async fn profile(
         let login = identity(&headers).ok_or(StatusCode::UNAUTHORIZED)?;
         let mut client = db.lock().await;
         let tx = client.transaction().await.map_err(failure)?;
+        let member = login.0.starts_with('@');
         session(&tx, login).await?;
         let raw: String = tx
             .query_one(
@@ -256,6 +273,9 @@ pub(super) async fn profile(
                 }
             }
         }
+        if member {
+            member_market_view(&mut profile);
+        }
         Ok(profile)
     }
     .await;
@@ -280,8 +300,49 @@ pub(super) async fn community(
             .await
             .map_err(failure)?
             .get(0);
-        serde_json::from_str(&value).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+        let mut public =
+            serde_json::from_str(&value).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        member_market_view(&mut public);
+        Ok(public)
     }
     .await;
     response("published_baskets_v1", &HeaderMap::new(), result)
+}
+
+/// Present stable routing references to members. Internal receipts retain the original identifiers.
+pub(super) fn member_market_view(value: &mut Value) {
+    match value {
+        Value::Object(obj) => {
+            obj.remove("evidence");
+            obj.remove("market_id");
+            if let Some(venue) = obj.get_mut("venue") {
+                *venue = match venue.as_str() {
+                    Some("binance") => json!("s1"),
+                    Some("okx") => json!("s2"),
+                    _ => Value::Null,
+                };
+            }
+            if obj
+                .get("note")
+                .and_then(Value::as_str)
+                .is_some_and(names_provider)
+            {
+                obj.insert("note".into(), json!("Waiting for eligible market data."));
+            }
+            for child in obj.values_mut() {
+                member_market_view(child);
+            }
+        }
+        Value::Array(rows) => {
+            for row in rows {
+                member_market_view(row);
+            }
+        }
+        _ => {}
+    }
+}
+
+pub(super) fn names_provider(text: &str) -> bool {
+    let lower = text.to_ascii_lowercase();
+    ["binance", "okx"].iter().any(|name| lower.contains(name))
 }

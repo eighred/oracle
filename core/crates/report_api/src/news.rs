@@ -32,18 +32,11 @@ async fn latest() -> Option<Value> {
         .user_agent("OracleNews/1.0 (+https://github.com/eighred/oracle)")
         .build()
         .ok()?;
-    let (announcements, desk, telegraph) = tokio::join!(
-        download(
-            &client,
-            "https://www.okx.com/api/v5/support/announcements?page=1"
-        ),
+    let (desk, telegraph) = tokio::join!(
         download(&client, "https://www.coindesk.com/arc/outboundfeeds/rss/"),
         download(&client, "https://cointelegraph.com/rss")
     );
     let mut articles = Vec::new();
-    if let Some(feed) = announcements.and_then(|v| headlines(&serde_json::from_slice(&v).ok()?)) {
-        articles.extend(feed["articles"].as_array()?.iter().cloned());
-    }
     for (content, publisher, hosts) in [
         (desk, "CoinDesk", &["www.coindesk.com", "coindesk.com"][..]),
         (telegraph, "Cointelegraph", &["cointelegraph.com"][..]),
@@ -80,7 +73,9 @@ fn rss(bytes: &[u8], source: &str, hosts: &[&str]) -> Vec<Value> {
             let time = chrono::DateTime::parse_from_rfc2822(field("pubDate")?)
                 .ok()?
                 .timestamp_millis();
-            (title.len() <= 600
+            let label = format!("{title} {url}").to_ascii_lowercase();
+            (!super::social::names_provider(&label)
+                && title.len() <= 600
                 && !title.is_empty()
                 && time > 0
                 && url.scheme() == "https"
@@ -106,36 +101,6 @@ async fn download(client: &reqwest::Client, url: &str) -> Option<Vec<u8>> {
     Some(bytes)
 }
 
-fn headlines(raw: &Value) -> Option<Value> {
-    if raw["code"] != "0" {
-        return None;
-    }
-    let mut articles = Vec::new();
-    for item in raw["data"][0]["details"].as_array()? {
-        let (Some(title), Some(url), Some(time)) = (
-            item["title"].as_str(),
-            item["url"].as_str(),
-            item["pTime"].as_str().and_then(|s| s.parse::<i64>().ok()),
-        ) else {
-            continue;
-        };
-        if !title.trim().is_empty()
-            && title.len() <= 600
-            && time > 0
-            && time < 8640000000000000
-            && url.starts_with("https://www.okx.com/help/")
-            && !url.chars().any(|c| c.is_control() || c == '\\')
-        {
-            articles.push((
-                time,
-                json!({"title":title,"url":url,"publishedMs":time,"source":"OKX"}),
-            ));
-        }
-    }
-    articles.sort_by_key(|(time, _)| std::cmp::Reverse(*time));
-    Some(json!({"articles":articles.into_iter().take(10).map(|(_,item)|item).collect::<Vec<_>>()}))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -149,15 +114,5 @@ mod tests {
         assert_eq!(articles.len(), 1);
         assert_eq!(articles[0]["title"], "A & B");
         assert_eq!(articles[0]["publishedMs"], 1795262400000_i64);
-    }
-    #[test]
-    fn headlines_keep_publisher_links_and_publication_order() {
-        let article = |url, time| json!({"url":url,"pTime":time,"title":"Announcement"});
-        let result = headlines(&json!({"code":"0","data":[{"details":[
-            article("https://www.okx.com/help/older","20"),article("javascript:alert(1)","90"),
-            article("https://www.okx.com/help/newer","40")]}]}))
-        .unwrap();
-        assert_eq!(result["articles"].as_array().unwrap().len(), 2);
-        assert_eq!(result["articles"][0]["publishedMs"], 40);
     }
 }

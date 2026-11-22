@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { resolveRoutes } from "./market_directory";
 import { apiFetch } from "./api";
 import { ref, watch } from "vue";
 import { utc } from "./report";
@@ -12,9 +13,7 @@ const positions = ref(
     pair: p.pair,
     quantity: (p.bps / 100).toFixed(2),
     shock_bps: -1000,
-  })) ?? [
-    { venue: "binance", pair: "BTC/USDT", quantity: "1", shock_bps: -1000 },
-  ],
+  })) ?? [{ venue: "", pair: "BTC/USDT", quantity: "1", shock_bps: -1000 }],
 );
 const cash = ref("0"),
   closes = ref(60),
@@ -44,6 +43,7 @@ type Result = {
     pair: string;
     exposure: string;
     mark: string;
+    expected_shortfall_contribution?: string;
     stress_pnl: string;
     tick: string;
     quantity_step: string;
@@ -92,7 +92,7 @@ async function run() {
           cash: cash.value,
           confidence_bps: confidence.value,
           closes: closes.value,
-          positions: positions.value,
+          positions: await resolveRoutes(positions.value),
         }),
       },
     );
@@ -136,14 +136,9 @@ async function run() {
       <legend>Scenario positions</legend>
       <div v-for="(p, i) in positions" :key="i" class="risk-fields">
         <label
-          >Venue<select v-model="p.venue">
-            <option value="binance">Binance</option>
-            <option value="okx">OKX</option>
-          </select></label
-        >
-        <label
           >Spot pair<input
             v-model.trim="p.pair"
+            @input="p.venue = ''"
             required
             placeholder="BASE/QUOTE"
         /></label>
@@ -173,7 +168,7 @@ async function run() {
         :disabled="positions.length >= 8"
         @click="
           positions.push({
-            venue: 'okx',
+            venue: '',
             pair: '',
             quantity: '1',
             shock_bps: -1000,
@@ -251,11 +246,18 @@ async function run() {
       <small v-if="result.advisory.model">{{ result.advisory.model }}</small>
     </section>
     <details v-for="p in result.positions" :key="p.venue + p.pair">
-      <summary>{{ p.venue }} · {{ p.pair }}</summary>
+      <summary>{{ p.pair }}</summary>
       <p>
         Mark {{ p.mark }} · Exposure
         <span :title="p.exposure">{{ amount(p.exposure) }}</span> · Scenario
         P&amp;L <span :title="p.stress_pnl">{{ amount(p.stress_pnl) }}</span>
+        {{ result.quote }}
+      </p>
+      <p v-if="p.expected_shortfall_contribution !== undefined">
+        Expected shortfall contribution
+        <span :title="p.expected_shortfall_contribution">{{
+          amount(p.expected_shortfall_contribution)
+        }}</span>
         {{ result.quote }}
       </p>
       <p>Price tick {{ p.tick }} · Lot step {{ p.quantity_step }}</p>

@@ -9,10 +9,10 @@ import {
   memberHandle,
   memberLogin,
 } from "./api";
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+import { defineAsyncComponent, computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import Icon from "./Icon.vue";
 import EquityChart from "./EquityChart.vue";
-import PaperReview from "./PaperReview.vue";
+const PaperReview = defineAsyncComponent(() => import("./PaperReview.vue"));
 import SpotRisk from "./SpotRisk.vue";
 import PublicBasket from "./PublicBasket.vue";
 import NativeLogin from "./NativeLogin.vue";
@@ -21,13 +21,13 @@ import Baskets from "./Baskets.vue";
 import Discover from "./Discover.vue";
 import PlatformSettings from "./PlatformSettings.vue";
 const selectedItems = ref<{ venue: string; pair: string; bps: number }[]>();
-const newPair = ref<{ pair: string; venue: "binance" | "okx" }>();
+const newPair = ref<{ pair: string; venue: "s1" | "s2" }>();
 const basketPage = ref(0);
 function basketRisk(items: { venue: string; pair: string; bps: number }[]) {
   selectedItems.value = items;
   location.hash = "spot-risk";
 }
-function newBasket(pair: string, venue: "binance" | "okx") {
+function newBasket(pair: string, venue: "s1" | "s2") {
   newPair.value = { pair, venue };
   location.hash = "baskets";
 }

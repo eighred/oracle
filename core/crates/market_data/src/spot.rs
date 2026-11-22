@@ -20,7 +20,9 @@ mod tests;
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "lowercase")]
 pub enum Venue {
+    #[serde(alias = "s1")]
     Binance,
+    #[serde(alias = "s2")]
     Okx,
 }
 

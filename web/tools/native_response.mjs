@@ -1,5 +1,14 @@
 import assert from "node:assert/strict";
+import { readdir, readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { createServer } from "vite";
+
+// Web, Android and iOS ship the same Vite distribution, including lazy chunks.
+for (const file of await readdir("dist", { recursive: true })) {
+  if (/\.(js|css|html|json|webmanifest)$/i.test(file)) {
+    assert.doesNotMatch(await readFile(join("dist", file), "utf8"), /binance|okx/i, file);
+  }
+}
 
 // The Capacitor bridge returns an empty string for a bodyless HTTP result.
 globalThis.androidBridge = {};

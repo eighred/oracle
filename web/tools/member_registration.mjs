@@ -106,6 +106,40 @@ try {
   ).json();
   assert.equal(profile.principal, session.username);
   assert.equal(JSON.stringify(profile).includes(email), false);
+  const basket = crypto.randomUUID();
+  for (const data of [
+    {
+      op: "create",
+      id: basket,
+      name: "Test market basket",
+      items: [{ venue: "s2", pair: "BTC/USDT", bps: 10000 }],
+    },
+    { op: "publish", id: basket, enabled: true },
+  ]) {
+    const action = await page.request.post(origin + "/api/baskets", {
+      headers,
+      data,
+    });
+    assert.equal(action.status(), 200);
+  }
+  for (const path of ["/api/baskets", "/api/discover/baskets?id=" + basket]) {
+    const response = await page.request.get(origin + path, { headers });
+    assert.equal(response.status(), 200);
+    const catalog = await response.json();
+    const verified = catalog.baskets.find((b) => b.id === basket);
+    assert.equal(verified.items[0].venue, "s2");
+    assert.doesNotMatch(JSON.stringify(verified), /binance|okx/i);
+  }
+  const settings = await page.request.post(origin + "/api/platform-settings", {
+    headers,
+    data: { op: "list" },
+  });
+  assert.equal(settings.status(), 403);
+  const unpublish = await page.request.post(origin + "/api/baskets", {
+    headers,
+    data: { op: "publish", id: basket, enabled: false },
+  });
+  assert.equal(unpublish.status(), 200);
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await page.getByRole("button", { name: "Sign in", exact: true }).waitFor();
   assert.equal(
