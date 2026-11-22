@@ -17,7 +17,22 @@ interface Paper {
   frozen_ms: number;
   state: "complete" | "missed" | "canceled";
   samples: { mark: string; close_ms: number; known_ms: number }[];
+  source_receipts?: {
+    open_ms: number;
+    received_ms: number;
+    response_json_sha256: string;
+  }[];
+  opening_valuation?: { nav: string; quote: string; valid_ms: number };
+  minute_risk?: {
+    confidence_bps: number;
+    sample_size: number;
+    by_rule: Record<
+      Rule,
+      { value_at_risk: string; expected_shortfall: string }
+    >;
+  };
   unobserved_slots: number[];
+  stop_reason?: string;
   projection: { runs: Run[] } | null;
 }
 const loading = ref(false),
@@ -25,6 +40,12 @@ const loading = ref(false),
   paper = ref<Paper>(),
   revision = ref("");
 const active = ref<Rule>("momentum");
+const sourceNames: Record<string, string> = {
+  prospective_synthetic: "Prospective synthetic experiment",
+  ccxt_loopback_fixture: "CCXT Rust · synthetic venue",
+  ccxt_binance_spot: "CCXT Rust · Binance spot",
+};
+const risk = computed(() => paper.value?.minute_risk?.by_rule[active.value]);
 const run = computed(() =>
   paper.value?.projection?.runs.find((item) => item.rule === active.value),
 );
@@ -58,7 +79,7 @@ async function refresh() {
       !/^[a-f0-9]{64}$/.test(id) ||
       p.manifest.version !== 1 ||
       p.manifest.portfolio !== props.portfolio ||
-      p.manifest.source_kind !== "prospective_synthetic" ||
+      !Object.hasOwn(sourceNames, p.manifest.source_kind) ||
       !["complete", "missed", "canceled"].includes(p.state) ||
       (p.state === "complete" &&
         !p.projection?.runs.some(
@@ -84,7 +105,8 @@ defineExpose({ refresh, loading });
   <p v-if="status" role="status" class="notice">{{ status }}</p>
   <template v-if="paper">
     <p class="asof">
-      <Icon name="Clock" />Prospective synthetic experiment · {{ paper.state }}
+      <Icon name="Clock" />{{ sourceNames[paper.manifest.source_kind] }} ·
+      {{ paper.state }}
     </p>
     <section class="panel">
       <h2>Observation window</h2>
@@ -100,6 +122,17 @@ defineExpose({ refresh, loading });
           {{ paper.samples.length }} observed ·
           {{ paper.unobserved_slots.length }} unobserved
         </dd>
+        <template v-if="paper.stop_reason"
+          ><dt>Stopped because</dt>
+          <dd>{{ paper.stop_reason.replaceAll("_", " ") }}</dd></template
+        >
+        <template v-if="paper.opening_valuation"
+          ><dt>Opening NAV</dt>
+          <dd>
+            {{ paper.opening_valuation.nav }} {{ paper.manifest.quote }} ·
+            {{ utc(paper.opening_valuation.valid_ms) }}
+          </dd></template
+        >
       </dl>
       <a class="next" :href="endpoint + revision" download="oracle-paper.json"
         ><Icon name="Download" />Download experiment and ledger</a
@@ -107,9 +140,7 @@ defineExpose({ refresh, loading });
     </section>
     <section v-if="paper.projection?.runs.length && run" class="panel">
       <h2>Net paper outcomes</h2>
-      <p class="caption">
-        After modeled costs · {{ paper.manifest.quote }} · synthetic prices
-      </p>
+      <p class="caption">After modeled costs · {{ paper.manifest.quote }}</p>
       <button
         class="strategy"
         v-for="item in paper.projection.runs"
@@ -171,6 +202,33 @@ defineExpose({ refresh, loading });
           </tbody>
         </table>
       </div>
+      <p v-if="risk && paper.minute_risk" class="caption">
+        One-minute historical risk ·
+        {{ paper.minute_risk.confidence_bps / 100 }}% confidence ·
+        {{ paper.minute_risk.sample_size }} returns
+      </p>
+      <dl v-if="risk">
+        <dt>Value at risk</dt>
+        <dd :title="risk.value_at_risk">
+          {{ numeric(risk.value_at_risk).toFixed(6) }}
+          {{ paper.manifest.quote }}
+        </dd>
+        <dt>Expected shortfall</dt>
+        <dd :title="risk.expected_shortfall">
+          {{ numeric(risk.expected_shortfall).toFixed(6) }}
+          {{ paper.manifest.quote }}
+        </dd>
+      </dl>
     </section>
+    <details class="panel" v-if="paper.source_receipts?.length">
+      <summary>Market data receipts</summary>
+      <dl v-for="(receipt, i) in paper.source_receipts" :key="receipt.open_ms">
+        <dt>
+          {{ utc(receipt.received_ms) }} · {{ paper.samples[i]?.mark }}
+          {{ paper.manifest.quote }}
+        </dt>
+        <dd>{{ receipt.response_json_sha256 }}</dd>
+      </dl>
+    </details>
   </template>
 </template>

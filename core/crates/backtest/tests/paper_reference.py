@@ -9,7 +9,9 @@ import sys
 def check(report):
     plan = report["manifest"]
     first = plan["first_ms"]
-    assert plan["source_kind"] == "prospective_synthetic" and report["state"] == "complete"
+    source = plan["source_kind"]
+    assert source in {"prospective_synthetic", "ccxt_loopback_fixture", "ccxt_binance_spot"}
+    assert report["state"] == "complete"
     canonical = json.dumps(plan, separators=(",", ":"), sort_keys=True).encode()
     assert hashlib.sha256(canonical).hexdigest() == report["manifest_sha256"]
     assert report["frozen_ms"] < first and plan["benchmark"] == "hold"
@@ -21,7 +23,13 @@ def check(report):
     for i, (s, mark, recorded) in enumerate(zip(samples, marks, times, strict=True)):
         scheduled = first + 60_000*i
         assert s["close_ms"] == scheduled <= s["known_ms"] <= recorded < scheduled+15_000
-        assert 23 <= mark <= 27 and (mark*100).denominator == 1
+        assert mark > 0 and (mark*100).denominator == 1
+        if source == "prospective_synthetic":
+            assert 23 <= mark <= 27
+        else:
+            ref = report["source_receipts"][i]
+            assert ref["open_ms"] + 60_000 == ref["close_ms_inclusive"] + 1 == scheduled
+            assert ref["received_ms"] == s["known_ms"] and len(bytes.fromhex(ref["response_json_sha256"])) == 32
     assert plan["last_ms"] == first+8*60_000 and plan["funding"] == plan["external_flows"] == "0"
     assert intents[:2] == [{}, {}] and intents[-1] == {}
     assert set(run["rule"] for run in report["projection"]["runs"]) == {"hold", "dca", "momentum"}
@@ -47,23 +55,28 @@ def check(report):
                 price = F(rounded,100)
                 notional = price/4
                 fee = F(-(-(notional*100_000)//1),100_000_000)
-                fill = row["posting"]["fill"]
-                assert fill["side"] == intents[i-1][rule] and F(fill["price"]) == price
-                assert F(fill["fee"]) == fee and F(fill["quantity_delta"]) == signed_qty
-                assert F(fill["cash_delta"]) == -signed_qty*price-fee
-                assert F(fill["half_spread_cost"]) == mark*F(2,40000)
-                assert F(fill["slippage_cost"]) == mark*F(3,40000)
-                assert F(fill["tick_rounding_cost"]) == abs(price-ticks/100)/4
-                if side > 0:
-                    basis += notional + fee
+                reason = ("insufficient_cash" if side > 0 and cash < notional+fee else
+                          "insufficient_quantity" if side < 0 and qty < -signed_qty else None)
+                if reason:
+                    assert row["posting"] == {"state":"rejected","side":intents[i-1][rule],"reason":reason}
                 else:
-                    removed = basis * (-signed_qty) / qty
-                    realized += notional - fee - removed
-                    basis -= removed
-                cash -= signed_qty*price + fee
-                qty += signed_qty
-                fees += fee
-                traded += notional
+                    fill = row["posting"]["fill"]
+                    assert fill["side"] == intents[i-1][rule] and F(fill["price"]) == price
+                    assert F(fill["fee"]) == fee and F(fill["quantity_delta"]) == signed_qty
+                    assert F(fill["cash_delta"]) == -signed_qty*price-fee
+                    assert F(fill["half_spread_cost"]) == mark*F(2,40000)
+                    assert F(fill["slippage_cost"]) == mark*F(3,40000)
+                    assert F(fill["tick_rounding_cost"]) == abs(price-ticks/100)/4
+                    if side > 0:
+                        basis += notional + fee
+                    else:
+                        removed = basis * (-signed_qty) / qty
+                        realized += notional - fee - removed
+                        basis -= removed
+                    cash -= signed_qty*price + fee
+                    qty += signed_qty
+                    fees += fee
+                    traded += notional
             else:
                 assert row["posting"]["state"] == "hold"
             nav = cash+qty*mark
@@ -74,6 +87,19 @@ def check(report):
                 cash, qty, nav, realized, qty*mark-basis, dd]
         assert [F(run[k]) for k in ("closing_nav","net_pnl","total_fees","max_drawdown","turnover_over_opening_nav")] == [
             nav,nav-opening,fees,worst,traded/opening]
+        if source != "prospective_synthetic":
+            ref = report["opening_valuation"]
+            assert F(ref["nav"]) == opening and F(ref["inventory_value"]) == 2*marks[2]
+            assert ref["observation_sha256"] == report["source_receipts"][2]["response_json_sha256"]
+            assert ref["valid_ms"] == samples[2]["close_ms"] and ref["known_ms"] == samples[2]["known_ms"]
+            losses = sorted(qty*marks[-1]*(1-after/before) for before, after in zip(marks, marks[1:]))
+            risk = report["minute_risk"]
+            assert risk["horizon_ms"] == 60_000 and risk["sample_size"] == 8 and risk["confidence_bps"] == 6250
+            tail = risk["by_rule"][rule]
+            assert F(tail["quantity"]) == qty
+            assert F(tail["value_at_risk"]) == losses[4]
+            assert F(tail["expected_shortfall"]) == sum(losses[5:])/3
+
 
 
 if __name__ == "__main__":

@@ -190,6 +190,17 @@ test("published paper experiment exposes its own window, coverage and immutable 
   expect(
     await (await request.get((await download.getAttribute("href"))!)).body(),
   ).toEqual(await response.body());
+  if (result.source_receipts?.length) {
+    await expect(page.getByRole("main")).toContainText(
+      result.opening_valuation.nav,
+    );
+    await page.getByText("Market data receipts", { exact: true }).click();
+    await expect(page.getByRole("main")).toContainText(
+      result.source_receipts[2].response_json_sha256,
+    );
+    await page.getByText("Market data receipts", { exact: true }).click();
+    expect(JSON.stringify(result)).not.toContain('"source_response":');
+  }
   for (const run of result.projection?.runs ?? []) {
     const name: Record<string, string> = {
       hold: "Buy & hold",
@@ -201,6 +212,14 @@ test("published paper experiment exposes its own window, coverage and immutable 
     });
     await control.click();
     await expect(control).toContainText(run.net_pnl);
+    if (result.minute_risk) {
+      await expect(
+        page.locator('dt:text-is("Expected shortfall") + dd'),
+      ).toHaveAttribute(
+        "title",
+        result.minute_risk.by_rule[run.rule].expected_shortfall,
+      );
+    }
     await expect(page.locator("tbody tr").last()).toContainText(
       run.closing_nav,
     );

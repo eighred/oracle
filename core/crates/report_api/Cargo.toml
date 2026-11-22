@@ -9,6 +9,7 @@ publish = false
 axum = "0.8"
 base64 = "0.22"
 oracle-backtest = { path = "../backtest" }
+oracle-market-data = { path = "../market_data" }
 oracle-spot-amount = { path = "../spot_amount" }
 oracle-portfolio-replay = { path = "../portfolio_replay" }
 ring = "0.17"

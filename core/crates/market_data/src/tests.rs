@@ -75,6 +75,15 @@ async fn ccxt_reads_one_closed_public_minute_and_preserves_decimal_atoms() {
     );
     assert!(observation["received_ms"].as_u64().unwrap() > START + MINUTE);
     assert_eq!(observation["rights_status"], "unreviewed");
+    assert!(verify_receipt(&observation, START, false).is_ok());
+    assert!(verify_receipt(&observation, START, true).is_err());
+    assert!(verify_receipt(&observation, START + MINUTE, false).is_err());
+    let mut altered = observation.clone();
+    altered["close"] = json!("100000000000.00000001");
+    assert!(verify_receipt(&altered, START, false).is_err());
+    altered = observation;
+    altered["source_response"][0][7] = json!("999.99999");
+    assert!(verify_receipt(&altered, START, false).is_err());
 }
 
 #[tokio::test]

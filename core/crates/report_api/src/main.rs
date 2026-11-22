@@ -22,6 +22,12 @@ fn digest(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
 
+fn canonical_bytes(mut value: serde_json::Value) -> Result<Vec<u8>, &'static str> {
+    // CCXT enables insertion-order JSON maps. Existing addressed reports use sorted object keys.
+    value.sort_all_objects();
+    serde_json::to_vec(&value).map_err(|_| "report encoding failed")
+}
+
 async fn connect() -> Result<Client, &'static str> {
     let config = env::var("ORACLE_DATABASE_URL")
         .ok()
@@ -53,11 +59,10 @@ async fn publish(client: &Client) -> Result<(), &'static str> {
         replay(FIXTURE, 1767225660000, 1767225660100).map_err(|_| "invalid opening snapshot")?;
     let risk = risk::report(&snapshot, 6250).map_err(|_| "invalid risk report")?;
     let backtest = oracle_backtest::report().map_err(|_| "invalid backtest")?;
-    let payload = serde_json::to_vec(
-        &json!({"schema_version":1,"source_kind":"synthetic_historical",
+    let payload = canonical_bytes(
+        json!({"schema_version":1,"source_kind":"synthetic_historical",
         "risk":risk,"backtest":backtest}),
-    )
-    .map_err(|_| "report encoding failed")?;
+    )?;
     let id = digest(&payload);
     client.execute("INSERT INTO oracle_read.reports(portfolio,report_id,payload) VALUES($1,$2,$3) ON CONFLICT DO NOTHING",
         &[&"own-paper-01",&id,&payload]).await.map_err(|_|"report publication failed")?;
@@ -240,11 +245,27 @@ async fn run() -> Result<(), &'static str> {
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> ExitCode {
+    if env::args().nth(1).as_deref() == Some("paper") {
+        // CCXT translates venue exceptions after the panic hook runs. Keep bodies off the journal log.
+        std::panic::set_hook(Box::new(|_| eprintln!("paper runtime exception")));
+    }
     match run().await {
         Ok(()) => ExitCode::SUCCESS,
         Err(reason) => {
             eprintln!("{reason}");
             ExitCode::FAILURE
         }
+    }
+}
+
+#[cfg(test)]
+mod encoding_tests {
+    #[test]
+    fn the_original_forward_experiment_keeps_its_manifest_digest_with_ccxt_linked() {
+        let manifest = oracle_backtest::paper::plan(1795313760000).unwrap();
+        assert_eq!(
+            super::digest(&super::canonical_bytes(manifest).unwrap()),
+            "98408511b66332f3187f3a23760bcb2e4331bbba44bf0cda1477f9b366663193"
+        );
     }
 }

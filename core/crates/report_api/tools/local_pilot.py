@@ -2,7 +2,7 @@
 import argparse
 import base64
 from getpass import getpass
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 import hashlib
 import json
 import os
@@ -13,6 +13,7 @@ import tempfile
 import time
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
+from fixture_venue import fixture_venue
 
 
 @contextmanager
@@ -68,15 +69,18 @@ def main():
     parser.add_argument("--api-bin", type=Path, required=True)
     parser.add_argument("--dist", type=Path, required=True)
     parser.add_argument("--port", type=int, default=8040)
-    parser.add_argument("--observe-paper", action="store_true",
+    sources = parser.add_mutually_exclusive_group()
+    sources.add_argument("--observe-paper", action="store_true",
                         help="freeze a nine-minute synthetic experiment and publish its observed outcome")
+    sources.add_argument("--observe-ccxt-fixture", action="store_true",
+                         help="read newly generated loopback candles with CCXT Rust for nine minutes")
     parser.add_argument("--check", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     os.umask(0o077)
     if not (args.dist / "index.html").is_file():
         parser.error("build the Vue workstation first")
     migration = Path(__file__).resolve().parents[1] / "migrations/001_workstation.sql"
-    with tempfile.TemporaryDirectory(prefix="oracle-pilot-") as folder:
+    with (fixture_venue() if args.observe_ccxt_fixture else nullcontext((None, {}))) as (fixture_port, candles), tempfile.TemporaryDirectory(prefix="oracle-pilot-") as folder:
         stage = Path(folder)
         pg = args.pg_bin
         data = stage / "db"
@@ -90,6 +94,7 @@ def main():
                                 "pilot_admin", "-d", "postgres"], input=statement, text=True, check=True)
             sql(migration.read_text())
             sql(migration.with_name("002_paper.sql").read_text())
+            sql(migration.with_name("003_source_scopes.sql").read_text())
             password = (secrets.token_hex(32) if args.check is not None
                         else getpass("Choose a temporary operator passphrase (16–256 UTF-8 bytes): "))
             if not 16 <= len(password.encode()) <= 256:
@@ -105,7 +110,10 @@ def main():
                 "INSERT INTO oracle_read.portfolio_grants VALUES ('operator','own-paper-01')")
             key = session("operator", password)
             def database_env(user, database="postgres"):
-                return {**os.environ, "ORACLE_DATABASE_URL": f"host='{stage}' user={user} dbname={database}"}
+                config = {**os.environ, "ORACLE_DATABASE_URL": f"host='{stage}' user={user} dbname={database}"}
+                if fixture_port:
+                    config["ORACLE_FIXTURE_PORT"] = str(fixture_port)
+                return config
             def publish():
                 return subprocess.check_output([args.api_bin, "publish-synthetic"],
                                                env=database_env("pilot_writer"), text=True).strip()
@@ -115,11 +123,13 @@ def main():
                                               env=database_env(role), text=True)
                 return json.loads(raw)
             paper_revision = None
-            if args.observe_paper or args.check is not None:
+            observe = args.observe_paper or args.observe_ccxt_fixture
+            if observe or args.check is not None:
                 first = (time.time_ns() // 60_000_000_000 + 2) * 60_000
-                manifest = paper("freeze", first)
-                assert paper("freeze", first) == manifest
-                if args.observe_paper:
+                freeze = "freeze-ccxt-fixture" if fixture_port else "freeze"
+                manifest = paper(freeze, first)
+                assert paper(freeze, first) == manifest
+                if observe:
                     print(f"Paper window frozen. First sample at {first} UTC milliseconds.", flush=True)
                     for index in range(manifest["samples"]):
                         due = (first + index * manifest["cadence_ms"]) / 1000 + 0.5
@@ -137,7 +147,14 @@ def main():
                 else:
                     assert paper("cancel", first) == paper("cancel", first)
                 observed = paper("report", first)
-                if args.observe_paper and observed["state"] == "complete":
+                if fixture_port and observed["state"] == "complete":
+                    assert len(candles) == len(observed["source_receipts"]) == 9
+                    for receipt, sample in zip(observed["source_receipts"], observed["samples"], strict=True):
+                        raw = candles[receipt["open_ms"]]
+                        assert receipt["response_json_sha256"] == hashlib.sha256(
+                            json.dumps(raw, separators=(",", ":")).encode()).hexdigest()
+                        assert receipt["received_ms"] == sample["known_ms"]
+                if observe and observed["state"] == "complete":
                     audit = Path(__file__).resolve().parents[2]/"backtest/tests/paper_reference.py"
                     export = stage/"paper.json"
                     export.write_text(json.dumps(observed), encoding="utf-8")
@@ -182,6 +199,21 @@ def main():
                 assert json.loads(paper_body) == observed
                 assert fetch(origin+paper_route+paper_revision,"observer:"+denied)[0] == 403
                 assert fetch(origin+paper_route+revision,"operator:"+password)[0] == 404
+                # Exercise source eligibility independently of portfolio access. This test never reads a venue.
+                window = (time.time_ns() // 60_000_000_000 + 3) * 60_000
+                refused = subprocess.run([args.api_bin, "paper", "freeze-binance", str(window)],
+                                         env=database_env("pilot_paper"), capture_output=True, text=True)
+                assert refused.returncode and "missing active BTCUSDT" in refused.stderr
+                sql("INSERT INTO oracle_paper.binance_scopes(evidence_ref,allowed_until) VALUES ('local permission test',now()+interval '1 hour')")
+                venue = paper("freeze-binance", window)
+                assert venue["source_kind"] == "ccxt_binance_spot"
+                assert paper("freeze-binance", window+60_000)["source_scope_id"] == venue["source_scope_id"]
+                paper("cancel", window)
+                scoped = paper("publish", window, role="pilot_writer")["report_id"]
+                assert fetch(origin+paper_route+scoped,"operator:"+password)[0] == 200
+                sql("UPDATE oracle_paper.binance_scopes SET revoked=true WHERE evidence_ref='local permission test'")
+                assert fetch(origin+paper_route+scoped,"operator:"+password)[0] == 404
+                assert fetch(origin+paper_route+"latest","operator:"+password)[1] == paper_revision
                 if args.check:
                     subprocess.run(args.check, check=True, env={**os.environ,"ORACLE_TEST_ORIGIN":origin,
                                    "ORACLE_TEST_PASSWORD":password, "ORACLE_DENIED_PASSWORD":denied})
