@@ -1,7 +1,6 @@
 //! Replay a reviewed point-in-time dataset for the first spot portfolio.
 
-mod amount;
-use amount::Amount;
+use oracle_spot_amount::Amount;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashSet;
@@ -97,7 +96,7 @@ impl Dataset {
             || self.quote.is_empty()
             || self.base == self.quote
             || self.portfolio.id.is_empty()
-            || self.price_tick.0 == 0
+            || self.price_tick == Amount::ZERO
             || !self.portfolio.quantity.aligns(self.quantity_step)
             || self.portfolio.effective_at_ms > self.portfolio.known_at_ms
         {
@@ -116,7 +115,7 @@ impl Dataset {
             if !bar.open_ms.is_multiple_of(MINUTE) || bar.received_ms < closed {
                 return Err(format!("{} is not a closed UTC minute at receipt", bar.id));
             }
-            if bar.low.0 == 0
+            if bar.low == Amount::ZERO
                 || bar.low > bar.open.min(bar.close)
                 || bar.high < bar.open.max(bar.close)
                 || [bar.low, bar.open, bar.high, bar.close]
@@ -211,7 +210,7 @@ mod tests {
         d.bars[0].received_ms = d.bars[0].open_ms;
         assert!(d.validate().is_err());
         let mut d = fixture();
-        d.bars[0].high = Amount(1);
+        d.bars[0].high = Amount::parse("0.00000001").unwrap();
         assert!(d.validate().is_err());
     }
 }
