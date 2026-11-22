@@ -129,7 +129,24 @@ test("direct discovery rankings lead to a saved template and server-sized risk",
         },
       }),
   );
+  await page.route("**/api/discover/news", (route) =>
+    route.fulfill({
+      json: {
+        articles: [
+          {
+            title: "Market listing update",
+            source: "OKX",
+            publishedMs: Date.now(),
+            url: "https://www.okx.com/help/listing",
+          },
+        ],
+      },
+    }),
+  );
   await page.goto("/#discover");
+  await expect(
+    page.getByRole("link", { name: "Market listing update" }),
+  ).toHaveAttribute("href", "https://www.okx.com/help/listing");
   await expect(page.locator("tbody tr").first()).toContainText("BETA/USDT");
   await page.getByRole("button", { name: "Gainers", exact: true }).click();
   await expect(page.locator("tbody tr")).toHaveCount(1);
@@ -199,7 +216,7 @@ test("only an administrator stages connections and appends future fee proposals"
   ).toBe(422);
 });
 
-test("joining follows owner revisions and leaving removes membership without changing a private copy", async ({
+test("following tracks owner revisions and unfollowing removes membership without changing a private copy", async ({
   browser,
   request,
 }) => {
@@ -224,15 +241,15 @@ test("joining follows owner revisions and leaving removes membership without cha
     await page.getByRole("button", { name: "Popular", exact: true }).click();
     await page.getByRole("button", { name: new RegExp(name) }).click();
     await page
-      .getByRole("button", { name: "Join basket", exact: true })
+      .getByRole("button", { name: "Follow basket", exact: true })
       .click();
     await expect(
-      page.getByRole("button", { name: "Leave basket" }),
+      page.getByRole("button", { name: "Unfollow basket" }),
     ).toBeVisible();
     await page.getByRole("button", { name: "Copy to my library" }).click();
     await expect(page.getByText(/Copied from revision 1/)).toBeVisible();
     await page.reload();
-    await page.getByRole("button", { name: "Joined", exact: true }).click();
+    await page.getByRole("button", { name: "Following", exact: true }).click();
     await page.getByRole("button", { name: new RegExp(name) }).click();
     await expect(page.getByRole("cell", { name: "SOL/USDT" })).toBeVisible();
     await act("edit", {
@@ -243,12 +260,213 @@ test("joining follows owner revisions and leaving removes membership without cha
     await expect(page.getByRole("cell", { name: "ETH/USDT" })).toBeVisible({
       timeout: 25000,
     });
-    await page.getByRole("button", { name: "Leave basket" }).click();
+    await page.getByRole("button", { name: "Unfollow basket" }).click();
     await expect(page.getByText("No baskets here yet.")).toBeVisible();
     await page.getByRole("button", { name: "Library", exact: true }).click();
     await page.getByRole("button", { name: new RegExp(name) }).click();
     await expect(page.getByRole("cell", { name: "SOL/USDT" })).toBeVisible();
   } finally {
     await context.close();
+  }
+});
+test("paper cash buys weighted lots, rebalances offline and redeems exactly once", async ({
+  browser,
+  request,
+}) => {
+  test.setTimeout(120000);
+  const id = randomUUID();
+  const name = "Weighted " + id.slice(0, 8);
+  const items = [
+    { venue: "okx", pair: "SOL/USDT", bps: 6000 },
+    { venue: "binance", pair: "ETH/USDT", bps: 4000 },
+  ];
+  const owner = (op: string, extra: Record<string, unknown> = {}) =>
+    request.post("/api/baskets", { data: { op, id, ...extra } });
+  const guest = await browser.newContext({
+    baseURL: process.env.ORACLE_TEST_ORIGIN,
+    httpCredentials: {
+      username: "observer",
+      password: process.env.ORACLE_DENIED_PASSWORD!,
+    },
+  });
+  const statement = async () =>
+    (await (await guest.request.get("/api/baskets")).json()).paper;
+  const account = async () =>
+    (await statement()).accounts.find(
+      (a: { basket: string }) => a.basket === id,
+    );
+  const guestAction = (op: string, extra: Record<string, unknown>) =>
+    guest.request.post("/api/baskets", { data: { op, id, ...extra } });
+  try {
+    expect((await owner("create", { name, items })).ok()).toBeTruthy();
+    expect((await owner("publish", { enabled: true })).ok()).toBeTruthy();
+    expect(
+      (
+        await guestAction("fund", {
+          amount: "10001",
+          request: randomUUID(),
+          revision: 1,
+        })
+      ).status(),
+    ).toBe(422);
+    const page = await guest.newPage();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/#profile");
+    await page.getByRole("button", { name: "Add paper funds" }).click();
+    await page.getByLabel("Deposit currency").fill("USDT");
+    await page.getByLabel("Deposit amount").fill("10000");
+    await page.getByRole("button", { name: "Confirm paper deposit" }).click();
+    await expect(page.locator(".total")).toHaveText("10,000.00 USDT");
+    const otherDeposit = {
+      request: randomUUID(),
+      currency: "TRY",
+      amount: "2500.25",
+    };
+    expect((await guestAction("deposit", otherDeposit)).ok()).toBeTruthy();
+    expect((await guestAction("deposit", otherDeposit)).ok()).toBeTruthy();
+    expect(
+      (
+        await guestAction("deposit", { ...otherDeposit, amount: "2500" })
+      ).status(),
+    ).toBe(409);
+    expect((await statement()).wallets.TRY).toBe("2500.25");
+    await page.goto("/#baskets");
+    await page.getByRole("button", { name: "Popular", exact: true }).click();
+    await page.getByRole("button", { name: new RegExp(name) }).click();
+    await page.getByLabel("Paper amount (USDT)").fill("1000");
+    await page.getByRole("button", { name: "Join with paper funds" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Paper positions" }),
+    ).toBeVisible();
+    await expect(page.getByText(/Committed 1000 USDT/)).toBeVisible();
+    await page.close();
+    await expect
+      .poll(async () => (await account())?.revision, { timeout: 15000 })
+      .toBe(1);
+    const first = await account();
+    const profilePage = await guest.newPage();
+    await profilePage.goto("/#profile");
+    await profilePage
+      .getByLabel("Currency", { exact: true })
+      .selectOption("USDT");
+    await expect(profilePage.locator(".total")).toHaveText("9,998.46 USDT");
+    await expect(
+      profilePage.getByRole("region", { name: "Coin holdings" }),
+    ).toContainText("5.99 SOL");
+    await profilePage
+      .getByRole("button", { name: "Baskets", exact: true })
+      .click();
+    await expect(
+      profilePage.getByRole("region", { name: "Basket returns" }),
+    ).toContainText("-0.1537%");
+    await profilePage
+      .getByRole("button", { name: "History", exact: true })
+      .click();
+    const history = profilePage.getByRole("region", {
+      name: "Transaction history",
+    });
+    await expect(history).toContainText("Basket entry");
+    await history.locator("summary").first().click();
+    await expect(history).toContainText("buy 5.99 SOL/USDT");
+    await profilePage.close();
+    expect(first.cash).toBe("0.4625611");
+    expect(first.receipt).toMatchObject({
+      fees: "0.9985389",
+      nav: "998.4625611",
+    });
+    expect(first.holdings).toEqual([
+      { venue: "binance", pair: "ETH/USDT", quantity: "7.98" },
+      { venue: "okx", pair: "SOL/USDT", quantity: "5.99" },
+    ]);
+    expect(
+      (
+        await guestAction("fund", {
+          amount: "1000",
+          request: first.id,
+          revision: 1,
+        })
+      ).ok(),
+    ).toBeTruthy();
+    expect(
+      (
+        await guestAction("fund", {
+          amount: "1001",
+          request: first.id,
+          revision: 1,
+        })
+      ).status(),
+    ).toBe(409);
+    expect((await statement()).wallets.USDT).toBe("9000");
+    expect((await owner("redeem", { request: first.id })).status()).toBe(404);
+    const catalog = await (await request.get("/api/baskets")).json();
+    expect(catalog.paper.accounts).toHaveLength(0);
+    expect(catalog.baskets.find((b: { id: string }) => b.id === id).users).toBe(
+      1,
+    );
+    expect(
+      (
+        await owner("edit", {
+          revision: 1,
+          name,
+          items: [{ ...items[1], pair: "ETH/BTC", bps: 10000 }],
+        })
+      ).status(),
+    ).toBe(409);
+    expect(
+      (
+        await owner("edit", {
+          revision: 1,
+          name,
+          items: [{ ...items[1], bps: 10000 }],
+        })
+      ).ok(),
+    ).toBeTruthy();
+    await expect
+      .poll(async () => (await account()).revision, { timeout: 15000 })
+      .toBe(2);
+    const revised = await account();
+    expect(revised.holdings).toEqual([
+      { venue: "binance", pair: "ETH/USDT", quantity: "19.93" },
+    ]);
+    expect(revised.cash).toBe("0.1080021");
+    await owner("publish", { enabled: false });
+    await owner("edit", { revision: 2, name: "Hidden name", items });
+    expect(await account()).toMatchObject({
+      revision: 2,
+      name,
+      status: "Access paused",
+    });
+    const redemption = await guest.newPage();
+    await redemption.goto("/#baskets");
+    await redemption
+      .getByRole("button", { name: "Joined", exact: true })
+      .click();
+    await redemption
+      .getByRole("button", { name: "Redeem to paper wallet" })
+      .click();
+    expect(
+      (await guestAction("redeem", { request: first.id })).ok(),
+    ).toBeTruthy();
+    await expect
+      .poll(async () => (await account()).status, { timeout: 15000 })
+      .toBe("Closed");
+    expect((await account()).holdings).toEqual([]);
+    expect((await statement()).wallets.USDT).toBe("9995.0142");
+    expect(
+      (
+        await guestAction("fund", {
+          amount: "1000",
+          request: first.id,
+          revision: 1,
+        })
+      ).ok(),
+    ).toBeTruthy();
+    expect(
+      (await statement()).accounts.filter(
+        (a: { basket: string }) => a.basket === id,
+      ),
+    ).toHaveLength(1);
+  } finally {
+    await guest.close();
   }
 });

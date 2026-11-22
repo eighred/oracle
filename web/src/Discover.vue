@@ -14,6 +14,28 @@ const pending = ref(false),
   message = ref(""),
   clock = ref(Date.now());
 const controller = new AbortController();
+type Headline = {
+  title: string;
+  url: string;
+  publishedMs: number;
+  source: string;
+};
+const articles = ref<Headline[]>([]),
+  newsState = ref("Loading announcements…");
+async function news() {
+  newsState.value = "Loading announcements…";
+  try {
+    const r = await fetch("/api/discover/news", { signal: controller.signal });
+    if (!r.ok) throw Error();
+    articles.value = (await r.json()).articles;
+    newsState.value = articles.value.length
+      ? ""
+      : "No announcements available.";
+  } catch {
+    articles.value = [];
+    newsState.value = "News feed unavailable.";
+  }
+}
 let timer: ReturnType<typeof setInterval>;
 const ranked = computed(() => {
   const fresh = rows.value.filter((r) => clock.value - r.ts <= 300000);
@@ -91,6 +113,7 @@ async function refresh() {
 }
 onMounted(() => {
   void refresh();
+  void news();
   timer = setInterval(() => (clock.value = Date.now()), 15000);
 });
 onBeforeUnmount(() => {
@@ -155,8 +178,40 @@ onBeforeUnmount(() => {
       </tbody>
     </table>
   </section>
+  <section class="panel headlines" aria-label="Market news">
+    <div class="filters">
+      <h2>Market news</h2>
+      <button :disabled="newsState.startsWith('Loading')" @click="news">
+        Refresh news
+      </button>
+    </div>
+    <p class="caption">Exchange announcements · OKX</p>
+    <p v-if="newsState" role="status">{{ newsState }}</p>
+    <article v-for="a in articles" :key="a.url">
+      <a :href="a.url" target="_blank" rel="noopener noreferrer">{{
+        a.title
+      }}</a>
+      <p class="caption">
+        {{ a.source }} ·
+        <time :datetime="new Date(a.publishedMs).toISOString()">{{
+          new Date(a.publishedMs).toLocaleString()
+        }}</time>
+      </p>
+    </article>
+  </section>
 </template>
 <style scoped>
+.headlines {
+  padding: 1rem;
+  margin-top: 1rem;
+}
+.headlines article {
+  padding: 0.65rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.headlines a:hover {
+  text-decoration: underline;
+}
 .filters {
   display: flex;
   gap: 0.5rem;

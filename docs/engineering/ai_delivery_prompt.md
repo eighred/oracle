@@ -21,6 +21,7 @@ You are working with Eighred on its private Oracle research and risk workstation
 | Change | Discriminating check |
 |---|---|
 | Market or valuation | Replay duplicate and corrected input at two knowledge cutoffs. Reconcile exact postings and distinguish unavailable from zero. |
+| Personal paper wallet | Exercise a simulated deposit, weighted entry, offline owner edit, periodic mark, exit and restore. Reconcile each currency and compare the member's history to exact lots, fees and residual cash. Treat publisher news and discovery prices as presentation inputs. |
 | Strategy or model | Freeze the benchmark, evaluation window, costs and decision clock. Perturb future observations and verify prior decisions remain fixed. |
 | API or access | Exercise permitted and denied reads with two synthetic principals through the real API and restricted database role. Check scope after connection or session reuse. |
 | Web or chart | Exercise the typed read API and browser. Verify amount, currency, as-of time, stale and denied states, keyboard access and narrow layout. Trace the same result to its backing run. |

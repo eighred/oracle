@@ -16,6 +16,42 @@ type Basket = {
   linkActive: boolean;
   sourceRevision: number | null;
 };
+type PaperAccount = {
+  id: string;
+  basket: string;
+  name: string;
+  currency: string;
+  contribution: string;
+  netReturnPct: string;
+  enteredAt: string;
+  cash: string;
+  revision: number;
+  status: string;
+  note: string | null;
+  holdings: { venue: string; pair: string; quantity: string }[];
+  receipt: null | {
+    asOfMs: number;
+    nav: string;
+    fees: string;
+    cash: string;
+    fills: {
+      venue: string;
+      pair: string;
+      side: string;
+      quantity: string;
+      price: string;
+      fee: string;
+      evidence: { source: string };
+    }[];
+  };
+};
+type Statement = {
+  wallets: Record<string, string>;
+  accounts: PaperAccount[];
+};
+const paper = ref<Statement>({ wallets: {}, accounts: [] });
+const amount = ref("");
+let instruction: { intent: string; request: string } | undefined;
 const props = defineProps<{ initialPair?: string }>();
 const emit = defineEmits<{ risk: [items: Item[]] }>();
 const rows = ref<Basket[]>([]),
@@ -38,11 +74,32 @@ const ticket = ref(
 );
 const selected = computed(() => rows.value.find((b) => b.id === detail.value));
 const group = ref("Library");
+const currency = computed(
+  () => selected.value?.items[0]?.pair.split("/")[1] ?? "",
+);
+const available = computed(() => paper.value.wallets[currency.value] ?? "0");
+const active = computed(() =>
+  paper.value.accounts.find(
+    (a) => a.basket === detail.value && a.status !== "Closed",
+  ),
+);
+async function fund() {
+  if (!selected.value) return;
+  const revision = selected.value.revision;
+  const intent = JSON.stringify([detail.value, revision, amount.value]);
+  if (instruction?.intent !== intent)
+    instruction = { intent, request: crypto.randomUUID() };
+  await action("fund", {
+    amount: amount.value,
+    revision,
+    request: instruction.request,
+  });
+}
 const filtered = computed(() =>
   rows.value.filter((b) =>
     group.value === "Popular"
       ? b.public
-      : group.value === "Joined"
+      : group.value === "Following"
         ? b.joined
         : b.mine || b.joined || !b.public,
   ),
@@ -69,8 +126,8 @@ async function api(payload?: Record<string, unknown>) {
           401: "Sign in to use baskets.",
           403: "This action requires a curator.",
           404: "Basket, recipient or share credentials unavailable.",
-          409: "The basket has changed. Reopen it before saving.",
-          422: "Check the name, pairs, weights and password.",
+          409: "Reload the basket. Its revision or paper participation has changed. Active paper positions require the same quote currency.",
+          422: "Check the amount and available paper balance, or the basket details.",
         } as Record<number, string>
       )[res.status] ?? "Basket service unavailable.",
     );
@@ -79,12 +136,14 @@ async function api(payload?: Record<string, unknown>) {
 async function load() {
   const data = await api().catch((error) => {
     rows.value = [];
+    paper.value.accounts = [];
     curator.value = false;
     ready.value = false;
     share.value = "";
     throw error;
   });
   rows.value = data.baskets;
+  paper.value = data.paper;
   curator.value = data.curator;
   ready.value = true;
 }
@@ -103,6 +162,8 @@ async function perform(fn: () => Promise<void>) {
 }
 function select(id: string) {
   detail.value = id;
+  amount.value = "";
+  instruction = undefined;
   share.value = "";
   pass.value = "";
   member.value = "";
@@ -142,7 +203,11 @@ async function action(op: string, extra: Record<string, unknown> = {}) {
   await perform(async () => {
     const r = await api({ op, id: detail.value, ...extra });
     await load();
-    if (op === "join") group.value = "Joined";
+    if (op === "join") group.value = "Following";
+    if (op === "fund") {
+      group.value = "Joined";
+      select("");
+    }
     if (op === "clone" || op === "unlock") {
       select(r.id);
       group.value = "Library";
@@ -173,6 +238,8 @@ onMounted(() => {
   void perform(async () => {
     await load();
     if (props.initialPair) editor();
+    else if (new URLSearchParams(location.hash.split("?")[1]).has("id"))
+      select(new URLSearchParams(location.hash.split("?")[1]).get("id")!);
   });
 });
 const refreshTimer = window.setInterval(() => {
@@ -180,7 +247,10 @@ const refreshTimer = window.setInterval(() => {
     document.visibilityState === "visible" &&
     !busy.value &&
     !editing.value &&
-    (group.value === "Joined" || selected.value?.joined)
+    (group.value === "Joined" ||
+      group.value === "Following" ||
+      selected.value?.joined ||
+      active.value)
   )
     void perform(load);
 }, 15000);
@@ -204,7 +274,7 @@ onBeforeUnmount(() => clearInterval(refreshTimer));
   </form>
   <div class="basket-tools">
     <button
-      v-for="g in ['Library', 'Joined', 'Popular']"
+      v-for="g in ['Library', 'Joined', 'Popular', 'Following']"
       :key="g"
       :aria-pressed="group === g"
       @click="
@@ -290,6 +360,33 @@ onBeforeUnmount(() => clearInterval(refreshTimer));
         </tr>
       </tbody>
     </table>
+    <form v-if="!active" class="basket-tools" @submit.prevent="fund">
+      <label
+        >Paper amount ({{ currency }})
+        <input
+          v-model.trim="amount"
+          inputmode="decimal"
+          required
+          pattern="[0-9]+(\.[0-9]{1,8})?"
+          placeholder="0.00"
+        />
+      </label>
+      <button :disabled="busy">Join with paper funds</button>
+      <span
+        >Available {{ available }} {{ currency }} · Owner updates automatically
+        rebalance this position.</span
+      >
+    </form>
+    <button
+      v-else
+      @click="
+        group = 'Joined';
+        select('');
+      "
+    >
+      View paper position
+    </button>
+    <a href="#profile">Open paper wallet</a>
     <div class="basket-tools">
       <button @click="emit('risk', selected.items)">Review basket risk</button
       ><button
@@ -304,7 +401,7 @@ onBeforeUnmount(() => clearInterval(refreshTimer));
         :disabled="busy"
         @click="action(selected.joined ? 'leave' : 'join')"
       >
-        {{ selected.joined ? "Leave basket" : "Join basket" }}
+        {{ selected.joined ? "Unfollow basket" : "Follow basket" }}
       </button>
       <template v-else
         ><button :disabled="busy" @click="editor(selected)">
@@ -366,13 +463,61 @@ onBeforeUnmount(() => clearInterval(refreshTimer));
       </button>
     </details>
   </section>
-  <section v-if="ready && !editing" class="panel basket-panel">
+  <section
+    v-if="ready && !editing && group === 'Joined'"
+    class="panel basket-panel"
+  >
+    <h2>Paper positions</h2>
+    <p v-if="!paper.accounts.length">
+      No paper positions yet. Choose a basket and enter a paper amount.
+    </p>
+    <article v-for="a in paper.accounts" :key="a.id">
+      <h3>{{ a.name }}</h3>
+      <p>
+        Entered {{ new Date(a.enteredAt).toLocaleString() }} · Net return
+        {{ a.netReturnPct }}%
+      </p>
+      <p>{{ a.status }} · Applied revision {{ a.revision }}</p>
+      <p>
+        Committed {{ a.contribution }} {{ a.currency }} · Position cash
+        {{ a.cash }} {{ a.currency }}
+      </p>
+      <p>Wallet available {{ paper.wallets[a.currency] }} {{ a.currency }}</p>
+      <p v-if="a.note">{{ a.note }}</p>
+      <ul v-if="a.holdings.length">
+        <li v-for="h in a.holdings" :key="h.venue + h.pair">
+          {{ h.quantity }} {{ h.pair }} · {{ h.venue }}
+        </li>
+      </ul>
+      <details v-if="a.receipt">
+        <summary>Last paper valuation and fills</summary>
+        <p>
+          Value {{ a.receipt.nav }} {{ a.currency }} · Fees
+          {{ a.receipt.fees }} {{ a.currency }} ·
+          {{ new Date(a.receipt.asOfMs).toISOString() }}
+        </p>
+        <p v-for="f in a.receipt.fills" :key="f.venue + f.pair">
+          {{ f.venue }} {{ f.pair }} · {{ f.side }} {{ f.quantity }} at
+          {{ f.price }} · Fee {{ f.fee }} {{ a.currency }} ·
+          {{ f.evidence.source }}
+        </p>
+      </details>
+      <button
+        v-if="a.status !== 'Closed' && a.status !== 'Redeeming'"
+        :disabled="busy"
+        @click="action('redeem', { request: a.id })"
+      >
+        Redeem to paper wallet
+      </button>
+    </article>
+  </section>
+  <section v-else-if="ready && !editing" class="panel basket-panel">
     <h2>
       {{
         group === "Popular"
           ? "Popular baskets"
-          : group === "Joined"
-            ? "Joined baskets"
+          : group === "Following"
+            ? "Followed baskets"
             : "My and shared baskets"
       }}
     </h2>
