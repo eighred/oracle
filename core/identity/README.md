@@ -23,7 +23,15 @@ The native public client uses an external browser, the authorization-code flow w
 
 ## Deployment inputs
 
-Use a dedicated HTTPS issuer, production Keycloak configuration, backed-up database, explicit application origins and a transactional SMTP service with a verified sender domain. Set the SMTP credential through the provider's secret configuration. The bundled SMTP catcher accepts local test messages and exposes them to developers on this machine. Realm import skips an existing realm. Review and apply changes through the identity administrator when upgrading an existing installation.
+Use a dedicated HTTPS issuer, production Keycloak configuration, backed-up database and explicit application origins. Eighred sends customer verification and recovery messages through Stalwart as `noreply@eighred.com`. The [Stalwart settings](stalwart.json) select authenticated submission with implicit TLS on `mail.eighred.com:465`. The checked-in password field references Keycloak's vault.
+
+On the target identity service, build Keycloak with `--vault=file` and start it with `--vault-dir=/run/secrets`. Supply the Stalwart app password from the deployment secret store as the read-only file `/run/secrets/oracle_stalwartSmtp`. Its value is the app password issued to the sending account. From an authenticated Keycloak administration session, apply the SMTP-only realm update:
+
+```sh
+kcadm.sh update realms/oracle -f core/identity/stalwart.json
+```
+
+That command updates the existing realm and preserves enrolled members. Test delivery from the configured public HTTPS issuer to an approved mailbox and check the link opens the intended Oracle realm. To return a development realm to the local inbox, restore its `smtpServer` object from `realm.json`. [Stalwart client settings](https://stalw.art/docs/server/clients/) and [Keycloak vault configuration](https://www.keycloak.org/server/vault). The bundled SMTP catcher accepts local test messages and exposes them to developers on this machine. Realm import skips an existing realm. Review and apply changes through the identity administrator when upgrading an existing installation.
 
 The browser and mobile clients have no client secret. The OIDC exchange checks the token at the configured issuer, verifies the subject, client, expiry, email verification and both authentication methods, then issues a short-lived Oracle credential. Member registration creates an ordinary account with a zero paper balance. Portfolio grants and platform administration are assigned separately. Password recovery preserves the enrolled OTP. Recovery for a lost authenticator requires an independently verified operator procedure.
 
