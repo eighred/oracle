@@ -60,6 +60,7 @@ test("operator selects arbitrary spot pairs and inspects joint risk", async ({
           (p: { venue: string; pair: string }) => ({
             ...p,
             exposure: "10",
+            expected_shortfall_contribution: p.venue === "okx" ? "-1/3" : "5/3",
             mark: "10",
             stress_pnl: "-1",
             tick: "0.01",
@@ -80,6 +81,7 @@ test("operator selects arbitrary spot pairs and inspects joint risk", async ({
   ).toBeVisible();
   await expect(page.getByTitle("4/3")).toHaveText("1.33333333 USDC");
   await page.getByText("okx · BETA/USDC").click();
+  await expect(page.getByTitle("-1/3")).toHaveText("−0.33333333");
   await expect(page.getByText("Candle receipt abc").last()).toBeVisible();
   await page.getByLabel("Quantity").first().fill("2");
   await expect(

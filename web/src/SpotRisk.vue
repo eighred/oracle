@@ -44,6 +44,7 @@ type Result = {
     pair: string;
     exposure: string;
     mark: string;
+    expected_shortfall_contribution?: string;
     stress_pnl: string;
     tick: string;
     quantity_step: string;
@@ -256,6 +257,11 @@ async function run() {
         Mark {{ p.mark }} · Exposure
         <span :title="p.exposure">{{ amount(p.exposure) }}</span> · Scenario
         P&amp;L <span :title="p.stress_pnl">{{ amount(p.stress_pnl) }}</span>
+        {{ result.quote }}
+      </p>
+      <p v-if="p.expected_shortfall_contribution !== undefined">
+        Expected shortfall contribution
+        <span :title="p.expected_shortfall_contribution">{{ amount(p.expected_shortfall_contribution) }}</span>
         {{ result.quote }}
       </p>
       <p>Price tick {{ p.tick }} · Lot step {{ p.quantity_step }}</p>

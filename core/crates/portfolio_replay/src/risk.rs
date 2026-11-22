@@ -64,26 +64,37 @@ enum Coverage {
     },
 }
 
-fn tails(losses: &mut [BigRational], confidence: u16) -> (BigRational, BigRational) {
-    losses.sort_unstable();
-    // Each observed loss owns 10,000 units of probability mass.
+/// Probability weights in observation order, splitting the mass at VaR equally among ties.
+fn tail_weights(losses: &[BigRational], confidence: u16) -> (BigRational, Vec<BigRational>) {
     let cutoff = losses.len() * usize::from(confidence);
-    let quantile = losses[cutoff.div_ceil(BASIS_POINTS) - 1].clone();
-    let mut weighted = BigRational::from_integer(0.into());
-    for (i, loss) in losses.iter().enumerate().rev() {
-        let weight = ((i + 1) * BASIS_POINTS)
-            .saturating_sub(cutoff)
-            .min(BASIS_POINTS);
-        if weight == 0 {
-            break;
-        }
-        weighted += loss * BigRational::from_integer(weight.into());
-    }
-    let tail_mass = losses.len() * BASIS_POINTS - cutoff;
-    (
-        quantile,
-        weighted / BigRational::from_integer(tail_mass.into()),
-    )
+    let mut ordered: Vec<_> = losses.iter().collect();
+    let (_, threshold, _) = ordered.select_nth_unstable(cutoff.div_ceil(BASIS_POINTS) - 1);
+    let var = (**threshold).clone();
+    let above = losses.iter().filter(|loss| **loss > var).count();
+    let tied = losses.iter().filter(|loss| **loss == var).count();
+    let mass = losses.len() * BASIS_POINTS - cutoff;
+    let full = BigRational::new(BASIS_POINTS.into(), mass.into());
+    let boundary = BigRational::new((mass - above * BASIS_POINTS).into(), mass.into())
+        / BigRational::from_integer(tied.into());
+    let weights = losses
+        .iter()
+        .map(|loss| match loss.cmp(&var) {
+            std::cmp::Ordering::Greater => full.clone(),
+            std::cmp::Ordering::Equal => boundary.clone(),
+            std::cmp::Ordering::Less => BigRational::from_integer(0.into()),
+        })
+        .collect();
+    (var, weights)
+}
+
+fn tails(losses: &[BigRational], confidence: u16) -> (BigRational, BigRational) {
+    let (var, weights) = tail_weights(losses, confidence);
+    let es = losses
+        .iter()
+        .zip(weights)
+        .map(|(loss, weight)| loss * weight)
+        .sum();
+    (var, es)
 }
 
 fn evaluate(snapshot: &Snapshot, history: &IndexHistory, confidence: u16) -> Coverage {
@@ -137,7 +148,7 @@ fn evaluate(snapshot: &Snapshot, history: &IndexHistory, confidence: u16) -> Cov
         });
         losses.push(loss);
     }
-    let (var, es) = tails(&mut losses, confidence);
+    let (var, es) = tails(&losses, confidence);
     Coverage::Complete {
         sample_size: losses.len(),
         scenarios,
@@ -163,14 +174,14 @@ pub fn minute_tail(
         (u128::from(quantity.atoms()) * u128::from(marks.last()?.atoms())).into(),
         (u128::from(Amount::ATOMS_PER_UNIT).pow(2)).into(),
     );
-    let mut losses = marks
+    let losses = marks
         .windows(2)
         .map(|pair| {
             let previous = BigRational::from_integer(pair[0].atoms().into());
             &exposure * (&previous - BigRational::from_integer(pair[1].atoms().into())) / previous
         })
         .collect::<Vec<_>>();
-    let (var, es) = tails(&mut losses, confidence);
+    let (var, es) = tails(&losses, confidence);
     Some((var.to_string(), es.to_string()))
 }
 
@@ -214,11 +225,11 @@ mod tests {
 
     #[test]
     fn ties_and_gains_keep_their_probability_and_sign() {
-        let mut losses = [-4, -2, -2, -1].map(|n| BigRational::from_integer(n.into()));
-        let (var, es) = tails(&mut losses, 5000);
+        let losses = [-4, -2, -2, -1].map(|n| BigRational::from_integer(n.into()));
+        let (var, es) = tails(&losses, 5000);
         assert_eq!(var.to_string(), "-2");
         assert_eq!(es.to_string(), "-3/2");
-        assert_eq!(tails(&mut losses, 9999).1.to_string(), "-1");
+        assert_eq!(tails(&losses, 9999).1.to_string(), "-1");
     }
 
     #[test]

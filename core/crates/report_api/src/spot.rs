@@ -97,7 +97,7 @@ async fn calculate(input: &Request) -> Result<Value, &'static str> {
     let positions=input.positions.iter().zip(&histories).zip(contributions).map(|((p,h),c)|
         json!({"venue":h.venue,"pair":p.pair,"market_id":h.market_id,"quantity":p.quantity,"tick":h.tick,
             "quantity_step":h.quantity_step,"mark":h.closes.last(),"shock_bps":p.shock_bps,"stress_pnl":c.stress_pnl,"exposure":c.exposure,
-            "received_ms":h.received_ms,"metadata_sha256":h.metadata_sha256,"candles_sha256":h.candles_sha256})).collect::<Vec<_>>();
+            "expected_shortfall_contribution":c.expected_shortfall,"received_ms":h.received_ms,"metadata_sha256":h.metadata_sha256,"candles_sha256":h.candles_sha256})).collect::<Vec<_>>();
     Ok(
         json!({"schema_version":1,"source":"public_spot_research","size_unit":input.size_unit,"quote":quote,
         "first_open_ms":histories[0].first_open_ms,"as_of_ms":last+60_000,

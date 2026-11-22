@@ -1,5 +1,5 @@
 //! Joint one-minute historical shocks on today's long spot exposures, in one quote currency.
-use super::tails;
+use super::tail_weights;
 use num_rational::BigRational as Number;
 use oracle_spot_amount::spot_decimal;
 use serde::{Deserialize, Serialize};
@@ -33,6 +33,7 @@ pub struct Summary {
 }
 
 pub struct Contribution {
+    pub expected_shortfall: String,
     pub exposure: String,
     pub stress_pnl: String,
 }
@@ -61,7 +62,7 @@ pub fn evaluate_sized(
     let mut nav = cash.clone();
     let mut stress_pnl = zero.clone();
     let mut losses = vec![zero; count - 1];
-    let mut contributions = Vec::new();
+    let mut leg_scenarios = Vec::new();
     for leg in legs {
         if leg.closes.len() != count || !(-10_000..=100_000).contains(&leg.shock_bps) {
             return Err("invalid panel or shock");
@@ -80,18 +81,39 @@ pub fn evaluate_sized(
             SizeUnit::Base => quantity * &prices[count - 1],
             SizeUnit::Quote => quantity,
         };
-        for (loss, pair) in losses.iter_mut().zip(prices.windows(2)) {
-            *loss += &exposure * (&pair[0] - &pair[1]) / &pair[0];
+        let leg_losses: Vec<_> = prices
+            .windows(2)
+            .map(|pair| &exposure * (&pair[0] - &pair[1]) / &pair[0])
+            .collect();
+        for (total, loss) in losses.iter_mut().zip(&leg_losses) {
+            *total += loss;
         }
         let pnl = &exposure * Number::new(leg.shock_bps.into(), 10_000.into());
         nav += &exposure;
         stress_pnl += &pnl;
-        contributions.push(Contribution {
-            exposure: exposure.to_string(),
-            stress_pnl: pnl.to_string(),
-        });
+        leg_scenarios.push((exposure, pnl, leg_losses));
     }
-    let (var, es) = tails(&mut losses, confidence);
+    let (var, weights) = tail_weights(&losses, confidence);
+    let es: Number = losses
+        .iter()
+        .zip(&weights)
+        .map(|(loss, weight)| loss * weight)
+        .sum();
+    let contributions = leg_scenarios
+        .into_iter()
+        .map(|(exposure, pnl, scenarios)| {
+            let component: Number = scenarios
+                .into_iter()
+                .zip(&weights)
+                .map(|(loss, weight)| loss * weight)
+                .sum();
+            Contribution {
+                exposure: exposure.to_string(),
+                stress_pnl: pnl.to_string(),
+                expected_shortfall: component.to_string(),
+            }
+        })
+        .collect();
     Ok((
         Summary {
             model: "joint_minute_spot_v1",
@@ -112,6 +134,21 @@ pub fn evaluate_sized(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn different_positions_share_tied_portfolio_losses_symmetrically() {
+        let early = ["100", "90", "90", "90", "90"].map(String::from);
+        let late = ["100", "100", "90", "90", "90"].map(String::from);
+        let legs = [&early, &late].map(|closes| Leg {
+            quantity: "100",
+            closes,
+            shock_bps: 0,
+        });
+        // Each holding loses ten on a different minute. The other holding is flat.
+        let (summary, positions) = evaluate_sized("20", &legs, 8750, SizeUnit::Quote).unwrap();
+        assert_eq!(summary.expected_shortfall, "10");
+        assert_eq!(positions[0].expected_shortfall, "5");
+        assert_eq!(positions[1].expected_shortfall, "5");
+    }
     #[test]
     fn quote_allocations_reprice_the_same_hundred_unit_reference_basket() {
         let marks = ["10", "11", "9", "12", "20"].map(String::from);
@@ -156,6 +193,8 @@ mod tests {
         assert_eq!(r.stress_pnl, "-11");
         assert_eq!(r.stressed_nav, "189");
         assert_eq!(contributions[1].stress_pnl, "9");
+        assert_eq!(contributions[0].expected_shortfall, "10");
+        assert_eq!(contributions[1].expected_shortfall, "-10");
     }
 
     #[test]
@@ -176,7 +215,9 @@ mod tests {
         ];
         // Reprice ending holdings (18 and 10) on each date pair.
         // Losses in time order: -10, 6.8, 0, -1. The worst 1.5 carry mean 68/15.
-        let (r, _) = evaluate("0", &legs, 6250).unwrap();
+        let (r, components) = evaluate("0", &legs, 6250).unwrap();
+        assert_eq!(components[0].expected_shortfall, "6/5");
+        assert_eq!(components[1].expected_shortfall, "10/3");
         assert_eq!(r.value_at_risk, "0");
         assert_eq!(r.expected_shortfall, "68/15");
         assert_eq!(r.stressed_nav, "28");
