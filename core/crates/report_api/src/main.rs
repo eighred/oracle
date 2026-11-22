@@ -8,6 +8,7 @@ mod paper;
 mod social;
 mod spot;
 mod spot_ticket;
+mod watchlist;
 use axum::{
     Router,
     extract::{Path, State},
@@ -304,6 +305,12 @@ async fn run() -> Result<(), &'static str> {
                         .layer(axum::extract::DefaultBodyLimit::max(2048)),
                 )
                 .route("/api/profile", get(social::profile))
+                .route(
+                    "/api/v1/me/watchlist",
+                    get(watchlist::read)
+                        .put(watchlist::replace)
+                        .layer(axum::extract::DefaultBodyLimit::max(90_000)),
+                )
                 .route(
                     "/api/community",
                     get(community::read)

@@ -104,6 +104,7 @@ def main():
             sql(migration.with_name("008_spot_tickets.sql").read_text())
             sql(migration.with_name("009_community.sql").read_text())
             sql(migration.with_name("010_basket_venue_policy.sql").read_text())
+            sql(migration.with_name("011_watchlist.sql").read_text())
             if args.check is not None:
                 sql((migration.parents[1] / "tests/spot_ticket.sql").read_text())
             if args.platform_admin or args.check is not None:
@@ -243,6 +244,7 @@ def main():
                                    "ORACLE_TEST_PASSWORD":password, "ORACLE_DENIED_PASSWORD":denied})
                 basket_catalogs = {user: fetch(origin+"/api/baskets",user+":"+token) for user,token in (("operator",password),("observer",denied))}
                 profiles = {user: fetch(origin+"/api/profile",user+":"+token) for user,token in (("operator",password),("observer",denied))}
+                watchlists = {user: fetch(origin+"/api/v1/me/watchlist",user+":"+token) for user,token in (("operator",password),("observer",denied))}
                 assert all(result[0] == 200 for result in profiles.values())
                 assert all(result[0] == 200 for result in basket_catalogs.values())
             # Restore the database to a second database on the isolated cluster.
@@ -255,6 +257,7 @@ def main():
             with api_server(args.api_bin,args.dist,database_env("pilot_reader","restored"),0) as restored:
                 for user,token in (("operator",password),("observer",denied)):
                     assert fetch(restored+"/api/profile",user+":"+token) == profiles[user]
+                    assert fetch(restored+"/api/v1/me/watchlist",user+":"+token) == watchlists[user]
                     assert fetch(restored+"/api/baskets",user+":"+token) == basket_catalogs[user]
                 route = "/api/portfolios/own-paper-01/reports/" + revision
                 assert fetch(restored+route,"operator:"+password) == (200,revision,original)
