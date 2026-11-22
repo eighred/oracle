@@ -2,6 +2,7 @@
 import { apiFetch } from "./api";
 import { ref, onMounted } from "vue";
 type Settings = {
+  qualified: string[];
   connections: {
     venue: string;
     secret_ref: string;
@@ -13,7 +14,7 @@ type Settings = {
 const data = ref<Settings>(),
   message = ref(""),
   busy = ref(false),
-  venue = ref("binance"),
+  venue = ref(""),
   bps = ref(1500),
   effective = ref("");
 async function submit(op: string, fields: Record<string, unknown> = {}) {
@@ -66,8 +67,9 @@ onMounted(() => void submit("list"));
             required
             placeholder="CCXT exchange ID"
           /><datalist id="venue-ids">
-            <option value="binance">Binance</option>
-            <option value="okx">OKX</option>
+            <option v-for="id in data.qualified" :key="id" :value="id">
+              {{ id }}
+            </option>
           </datalist></label
         ><button :disabled="busy">Stage connection</button>
       </form>
@@ -76,7 +78,7 @@ onMounted(() => void submit("list"));
         {{
           !c.enabled
             ? "Disabled"
-            : ["okx", "binance"].includes(c.venue)
+            : data.qualified.includes(c.venue)
               ? "Paper adapter available"
               : "Staged � adapter qualification pending"
         }}

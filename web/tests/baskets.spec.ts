@@ -111,23 +111,24 @@ test("private sharing, independent clones, unique popularity and official pins s
 test("direct discovery rankings lead to a saved template and server-sized risk", async ({
   page,
 }) => {
-  const ticker = (name: string, price: string, volume: string) => ({
-    instType: "SPOT",
-    instId: name + "-USDT",
-    last: price,
-    open24h: "10",
-    volCcy24h: volume,
-    ts: String(Date.now()),
+  const ticker = (pair: string, price: string, volume: string) => ({
+    pair,
+    quote: "USDT",
+    price,
+    open: "10",
+    volume,
+    ts: Date.now(),
   });
-  await page.route(
-    "https://www.okx.com/api/v5/market/tickers?instType=SPOT",
-    (route) =>
-      route.fulfill({
-        json: {
-          code: "0",
-          data: [ticker("ALPHA", "12", "200"), ticker("BETA", "9", "300")],
-        },
-      }),
+  await page.route("**/api/discover/markets/s1", (route) =>
+    route.fulfill({ json: [ticker("ALPHA/USDT", "13", "200")] }),
+  );
+  await page.route("**/api/discover/markets/s2", (route) =>
+    route.fulfill({
+      json: [
+        ticker("ALPHA/USDT", "12", "200"),
+        ticker("BETA/USDT", "9", "300"),
+      ],
+    }),
   );
   await page.route("**/api/discover/news", (route) =>
     route.fulfill({
@@ -135,45 +136,13 @@ test("direct discovery rankings lead to a saved template and server-sized risk",
         articles: [
           {
             title: "Market listing update",
-            source: "OKX",
+            source: "CoinDesk",
             publishedMs: Date.now(),
-            url: "https://www.okx.com/help/listing",
+            url: "https://www.coindesk.com/markets/listing",
           },
         ],
       },
     }),
-  );
-  await page.route(
-    "https://data-api.binance.vision/api/v3/exchangeInfo",
-    (route) =>
-      route.fulfill({
-        json: {
-          symbols: [
-            {
-              symbol: "ALPHAUSDT",
-              baseAsset: "ALPHA",
-              quoteAsset: "USDT",
-              status: "TRADING",
-              isSpotTradingAllowed: true,
-            },
-          ],
-        },
-      }),
-  );
-  await page.route(
-    "https://data-api.binance.vision/api/v3/ticker/24hr",
-    (route) =>
-      route.fulfill({
-        json: [
-          {
-            symbol: "ALPHAUSDT",
-            openPrice: "10",
-            lastPrice: "13",
-            quoteVolume: "200",
-            closeTime: Date.now(),
-          },
-        ],
-      }),
   );
   await page.goto("/#discover");
   await expect(page.locator("tbody tr").first()).toContainText("ALPHA/USDT");
@@ -184,7 +153,7 @@ test("direct discovery rankings lead to a saved template and server-sized risk",
   await page.getByRole("button", { name: "News", exact: true }).click();
   await expect(
     page.getByRole("link", { name: "Market listing update" }),
-  ).toHaveAttribute("href", "https://www.okx.com/help/listing");
+  ).toHaveAttribute("href", "https://www.coindesk.com/markets/listing");
   await page.getByRole("button", { name: "Markets", exact: true }).click();
   await page.getByRole("button", { name: "Gainers", exact: true }).click();
   await expect(page.locator("tbody tr")).toHaveCount(1);
@@ -193,7 +162,9 @@ test("direct discovery rankings lead to a saved template and server-sized risk",
     .getByRole("button", { name: "Create basket with BETA/USDT" })
     .click();
   await page.getByLabel("Basket name").fill("Discovered basket");
+  await expect(page.getByLabel("Venue", {exact:true})).toHaveCount(0);
   await page.getByRole("button", { name: "Save basket" }).click();
+  await expect(page.getByRole("main")).not.toContainText(/binance|okx/i);
   await page.getByRole("button", { name: "Review basket risk" }).click();
   await expect(page.getByLabel("Quote allocation")).toHaveValue("100.00");
   await expect(page.getByLabel("Spot pair")).toHaveValue("BETA/USDT");
@@ -549,25 +520,18 @@ test("app entry supports mobile market search, public basket discovery and walle
   const feed = await (await request.get("/api/discover/baskets")).json();
   expect(feed.baskets.map((b: { id: string }) => b.id)).toContain(id);
   expect(feed.baskets.map((b: { id: string }) => b.id)).not.toContain(hidden);
-  await page.route("https://data-api.binance.vision/**", (route) =>
-    route.abort(),
-  );
-  await page.route(
-    "https://www.okx.com/api/v5/market/tickers?instType=SPOT",
-    (r) =>
-      r.fulfill({
-        json: {
-          code: "0",
-          data: Array.from({ length: 30 }, (_, i) => ({
-            instId: "COIN" + i + "-USDT",
-            instType: "SPOT",
-            last: "12",
-            open24h: "10",
-            volCcy24h: String(100 - i),
-            ts: String(Date.now()),
-          })),
-        },
-      }),
+  await page.route("**/api/discover/markets/s1", (route) => route.abort());
+  await page.route("**/api/discover/markets/s2", (route) =>
+    route.fulfill({
+      json: Array.from({ length: 30 }, (_, i) => ({
+        pair: "COIN" + i + "/USDT",
+        quote: "USDT",
+        price: "12",
+        open: "10",
+        volume: 100 - i,
+        ts: Date.now(),
+      })),
+    }),
   );
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/");

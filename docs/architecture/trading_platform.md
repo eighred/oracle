@@ -24,7 +24,7 @@ Each simulated deposit credits one member and currency against a request ID. An 
 
 **My profile** shows the signed-in member, original deposit currencies, spendable cash, position NAV, total balance, coin quantities and dated net returns. A fresh profile starts empty. Each currency total equals its available wallet cash plus its open position values. Basket return is the percentage change from the reserved contribution after modeled costs. Redemption uses the final cash proceeds as the terminal NAV. Independent five-minute marks revalue held quantities between allocation events. Each displayed aggregate retains its oldest applicable mark time. Transaction history links entry and exit amounts to the basket name at that revision and expands each allocation into dated fills and fees. The balances page keeps TRY, USD and stablecoin balances in their own denominations. Currency conversion needs a dated FX market.
 
-Discover includes OKX spot rankings and an exchange-news feed served from the publisher's announcements API. Price discovery and news are independent of the paper worker. [OKX API documentation](https://www.okx.com/docs-v5/en/)
+Discover ranks pairs from Oracle's cached spot directory. Member screens and API responses identify pairs without naming a routing provider. The news feed uses independent financial publishers. Price discovery and news are independent of the paper worker.
 
 ## Company-account execution design
 
