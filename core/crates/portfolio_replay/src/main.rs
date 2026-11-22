@@ -1,9 +1,19 @@
-use oracle_portfolio_replay::{FIXTURE, replay};
+use oracle_portfolio_replay::{FIXTURE, replay, risk};
 use std::{env, fs::File, io::Read, process::ExitCode};
 
 fn run() -> Result<(), String> {
-    let mut args = env::args().skip(1);
-    let usage = "usage: oracle-portfolio-replay VALID_AT_MS KNOWN_AT_MS [DATASET.json]";
+    let mut args = env::args().skip(1).peekable();
+    let usage = "usage: oracle-portfolio-replay [--risk-bps CONFIDENCE] VALID_AT_MS KNOWN_AT_MS [DATASET.json]";
+    let confidence = if args.next_if(|arg| arg == "--risk-bps").is_some() {
+        Some(
+            args.next()
+                .ok_or(usage)?
+                .parse::<u16>()
+                .map_err(|_| usage)?,
+        )
+    } else {
+        None
+    };
     let valid = args
         .next()
         .ok_or(usage)?
@@ -30,10 +40,12 @@ fn run() -> Result<(), String> {
         FIXTURE
     };
     let snapshot = replay(bytes, valid, known)?;
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&snapshot).map_err(|e| e.to_string())?
-    );
+    let json = match confidence {
+        Some(bps) => serde_json::to_string_pretty(&risk::report(&snapshot, bps)?),
+        None => serde_json::to_string_pretty(&snapshot),
+    }
+    .map_err(|e| e.to_string())?;
+    println!("{json}");
     Ok(())
 }
 
