@@ -741,3 +741,68 @@ dd {
     width: auto;
   }
 }
+
+.market-nav {
+  display: flex;
+  align-items: center;
+  gap: clamp(14px, 2vw, 30px);
+}
+.market-nav a {
+  color: var(--muted);
+  font-weight: 600;
+}
+.market-nav a:hover,
+.market-nav a[aria-current],
+.market-nav a.market-home {
+  color: var(--color-paper-white);
+}
+.market-home {
+  font-size: 21px;
+  letter-spacing: -0.06em;
+}
+.consumer .toolbar {
+  background: var(--color-void);
+}
+.member-entry {
+  padding: 24px;
+  max-width: 540px;
+}
+.member-entry p {
+  color: var(--muted);
+  margin: 8px 0 20px;
+}
+.member-entry button + button {
+  margin-left: 12px;
+}
+@media (min-width: 761px) {
+  .consumer .crumb,
+  .consumer .toolbar > .current,
+  .consumer .toolbar > .icon {
+    display: none;
+  }
+  .consumer .toolbar {
+    min-height: 64px;
+  }
+  .consumer main {
+    max-width: 1600px;
+    margin-inline: auto;
+    padding-inline: clamp(16px, 3vw, 42px);
+  }
+}
+@media (max-width: 480px) {
+  .consumer .toolbar {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-bottom: 8px;
+  }
+  .consumer #discovery-search {
+    order: 2;
+    min-width: 100%;
+  }
+  .consumer .toolbar .app-button {
+    margin-left: 0;
+  }
+  .consumer .mobile-brand {
+    margin-right: auto;
+  }
+}

@@ -19,6 +19,15 @@ BEGIN
     IF statement->'accounts'->0->>'cash'<>'10' OR statement->'accounts'->0->>'revision'<>'0' OR
        statement->'wallets'->>'TRY'<>'0' THEN RAISE EXCEPTION 'missing price changed economic state'; END IF;
 
+    INSERT INTO oracle_admin.venue_connections VALUES ('okx','vault:oracle/company/okx',false,1);
+    UPDATE oracle_basket_paper.accounts SET retry_at='-infinity' WHERE id=account;
+    original := oracle_basket_paper.claim();
+    PERFORM oracle_basket_paper.finish(account,(original->>'token')::uuid,1,false,receipt,NULL);
+    IF EXISTS(SELECT FROM oracle_basket_paper.postings)
+        OR (SELECT cash FROM oracle_basket_paper.accounts WHERE id=account)<>10
+        OR has_function_privilege('oracle_basket_worker','oracle_basket_paper.finish_internal(uuid,uuid,int,boolean,jsonb,text)','execute')
+        THEN RAISE EXCEPTION 'disabled venue allowed posting'; END IF;
+    UPDATE oracle_admin.venue_connections SET enabled=true WHERE venue='okx';
     UPDATE oracle_basket_paper.accounts SET retry_at='-infinity' WHERE id=account;
     original := oracle_basket_paper.claim();
     IF oracle_basket_paper.claim() IS NOT NULL THEN RAISE EXCEPTION 'leased work reclaimed early'; END IF;

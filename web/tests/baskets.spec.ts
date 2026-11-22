@@ -143,23 +143,50 @@ test("direct discovery rankings lead to a saved template and server-sized risk",
       },
     }),
   );
+  await page.route(
+    "https://data-api.binance.vision/api/v3/exchangeInfo",
+    (route) =>
+      route.fulfill({
+        json: {
+          symbols: [
+            {
+              symbol: "ALPHAUSDT",
+              baseAsset: "ALPHA",
+              quoteAsset: "USDT",
+              status: "TRADING",
+              isSpotTradingAllowed: true,
+            },
+          ],
+        },
+      }),
+  );
+  await page.route(
+    "https://data-api.binance.vision/api/v3/ticker/24hr",
+    (route) =>
+      route.fulfill({
+        json: [
+          {
+            symbol: "ALPHAUSDT",
+            openPrice: "10",
+            lastPrice: "13",
+            quoteVolume: "200",
+            closeTime: Date.now(),
+          },
+        ],
+      }),
+  );
   await page.goto("/#discover");
+  await expect(page.locator("tbody tr").first()).toContainText("ALPHA/USDT");
+  await expect(page.locator("tbody tr")).toHaveCount(2);
+  await expect(
+    page.locator("tbody tr").first().locator("td").nth(1),
+  ).toHaveText("13");
+  await page.getByRole("button", { name: "News", exact: true }).click();
   await expect(
     page.getByRole("link", { name: "Market listing update" }),
   ).toHaveAttribute("href", "https://www.okx.com/help/listing");
-  await expect(page.locator("tbody tr").first()).toContainText("BETA/USDT");
-  const card = page.getByRole("button", { name: "Explore Top gainers" });
-  await expect(card).toContainText("ALPHA/USDT");
-  await expect(
-    page.getByRole("button", { name: "Explore Volume leaders" }),
-  ).toContainText("BETA/USDT");
-  await card.click();
-  await expect(
-    page.getByRole("heading", { name: "Spot markets" }),
-  ).toBeFocused();
-  await expect(
-    page.getByRole("button", { name: "Gainers", exact: true }),
-  ).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "Markets", exact: true }).click();
+  await page.getByRole("button", { name: "Gainers", exact: true }).click();
   await expect(page.locator("tbody tr")).toHaveCount(1);
   await page.getByRole("button", { name: "Losers", exact: true }).click();
   await page
@@ -208,6 +235,7 @@ test("only an administrator stages connections and appends future fee proposals"
       ).json()
     ).connections[0].enabled,
   ).toBe(false);
+  expect((await send({ ...data, request: randomUUID() })).ok()).toBe(true);
   const fee = {
     op: "fee",
     request: randomUUID(),
@@ -521,6 +549,9 @@ test("app entry supports mobile market search, public basket discovery and walle
   const feed = await (await request.get("/api/discover/baskets")).json();
   expect(feed.baskets.map((b: { id: string }) => b.id)).toContain(id);
   expect(feed.baskets.map((b: { id: string }) => b.id)).not.toContain(hidden);
+  await page.route("https://data-api.binance.vision/**", (route) =>
+    route.abort(),
+  );
   await page.route(
     "https://www.okx.com/api/v5/market/tickers?instType=SPOT",
     (r) =>

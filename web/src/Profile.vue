@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { apiFetch } from "./api";
 import { onMounted, onBeforeUnmount, computed, ref } from "vue";
+import TraderFeed from "./TraderFeed.vue";
+import AccountPreview from "./AccountPreview.vue";
 import Icon from "./Icon.vue";
 
 type Balance = {
@@ -8,6 +10,7 @@ type Balance = {
   available: string;
   deposited: string;
   basketValue: string;
+  spotValue?: string;
   total: string;
   net: string;
   asOf: number | null;
@@ -29,8 +32,9 @@ type Entry = {
   name: string | null;
   receipt: null | {
     fees: string;
+    spread?: string;
     fills: {
-      venue: string;
+      venue?: string;
       pair: string;
       side: string;
       quantity: string;
@@ -65,7 +69,7 @@ const data = ref<Profile>(),
   busy = ref(false),
   error = ref("");
 const currency = ref(""),
-  section = ref<"Coins" | "Baskets" | "History">("Coins");
+  section = ref<"Coins" | "Baskets" | "History" | "Trader profile">("Coins");
 const depositing = ref(false),
   unit = ref("TRY"),
   amount = ref("");
@@ -222,12 +226,18 @@ onBeforeUnmount(() => {
         <p class="caption" v-if="balance.asOf">
           {{
             Date.now() - balance.asOf > 600000
-              ? "Stale basket marks"
-              : "Oldest basket mark"
+              ? "Stale position marks"
+              : "Oldest position mark"
           }}
           · {{ date(balance.asOf) }}
         </p>
         <dl class="values">
+          <div v-if="balance.spotValue && Number(balance.spotValue) > 0">
+            <dt>Spot holdings</dt>
+            <dd>
+              {{ displayAmount(balance.spotValue, currency) }} {{ currency }}
+            </dd>
+          </div>
           <div>
             <dt>Deposited</dt>
             <dd :title="balance.deposited">
@@ -293,9 +303,10 @@ onBeforeUnmount(() => {
         <button :disabled="busy">Confirm paper deposit</button>
       </form>
     </section>
+    <AccountPreview />
     <div class="tabs">
       <button
-        v-for="s in ['Coins', 'Baskets', 'History'] as const"
+        v-for="s in ['Coins', 'Baskets', 'History', 'Trader profile'] as const"
         :key="s"
         :aria-pressed="section === s"
         @click="section = s"
@@ -343,6 +354,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
     </section>
+    <TraderFeed v-else-if="section === 'Trader profile'" own />
     <section v-else aria-label="Transaction history">
       <h2>Transaction history</h2>
       <p class="caption">All deposit currencies · newest first</p>
@@ -359,12 +371,16 @@ onBeforeUnmount(() => {
           <summary>
             Fill details · Fees {{ e.receipt.fees }} {{ e.currency }}
           </summary>
+          <p v-if="e.receipt.spread">
+            Eighred paper spread {{ e.receipt.spread }} {{ e.currency }}
+          </p>
           <p
             v-for="f in e.receipt.fills.filter((f) => f.quantity !== '0')"
-            :key="f.venue + f.pair"
+            :key="(f.venue ?? '') + f.pair"
           >
             {{ f.side }} {{ f.quantity }} {{ f.pair }} at {{ f.price }} ·
-            {{ f.venue }} · Fee {{ f.fee }} {{ e.currency }}
+            <template v-if="f.venue">{{ f.venue }} · </template>
+            Fee {{ f.fee }} {{ e.currency }}
           </p>
         </details>
       </article>

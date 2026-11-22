@@ -53,7 +53,7 @@ type Statement = {
 const paper = ref<Statement>({ wallets: {}, accounts: [] });
 const amount = ref("");
 let instruction: { intent: string; request: string } | undefined;
-const props = defineProps<{ initialPair?: string }>();
+const props = defineProps<{ initialPair?: { pair: string; venue: string } }>();
 const emit = defineEmits<{ risk: [items: Item[]] }>();
 const rows = ref<Basket[]>([]),
   curator = ref(false),
@@ -178,8 +178,8 @@ function editor(b?: Basket) {
     ? b.items.map((i) => ({ ...i }))
     : [
         {
-          venue: props.initialPair ? "okx" : "binance",
-          pair: props.initialPair ?? "BTC/USDT",
+          venue: props.initialPair?.venue ?? "binance",
+          pair: props.initialPair?.pair ?? "BTC/USDT",
           bps: 10000,
         },
       ];
@@ -215,10 +215,7 @@ async function action(op: string, extra: Record<string, unknown> = {}) {
     }
     if (op === "link") {
       share.value =
-        location.origin +
-        location.pathname +
-        "#baskets?share=" +
-        encodeURIComponent(r.token);
+        shareBase() + "#baskets?share=" + encodeURIComponent(r.token);
     }
     if (op === "unlink") share.value = "";
     if (op === "unlock") {

@@ -54,4 +54,23 @@ Run `oracle-report-api basket-worker` with a loopback database connection in `OR
 
 The worker reserves user cash atomically, claims an instruction with a four-minute lease and rechecks its revision and scope before posting. An unposted lease becomes eligible after expiry. Unavailable prices keep the entire allocation pending. A later eligible revision supersedes intervening unfilled revisions. Redemption sells all held legs at a dated mark and credits the original currency wallet. Revoking access pauses future template allocations while the member retains valuation and redemption of existing holdings. A quote-currency change requires closing existing positions. Routine five-minute position marks update displayed NAV and never change holdings or generate fills.
 
-`GET /api/profile` derives an authenticated member's totals, positions and transaction history. The activity page carries 25 entries and a lookahead. Supply the last displayed entry ID as `before` to fetch older events. `GET /api/discover/news` caches the public OKX announcements feed for five minutes. External article links carry the publisher's title, source and publication time.
+`GET /api/profile` derives an authenticated member's totals, positions and transaction history. The activity page carries 25 entries and a lookahead. Supply the last displayed entry ID as `before` to fetch older events. `GET /api/discover/news` combines OKX announcements with RSS headlines from CoinDesk and Cointelegraph in a five-minute cache. External article links carry the publisher's title, source and publication time.
+
+Migration 010 applies the administrator's enabled venue settings at basket settlement. A disabled venue keeps a pending allocation in cash or in its existing holdings until all required fills are eligible. Read-only marks can continue during the pause.
+
+## Member identity
+
+Apply migration 007 for member account bindings and expiring sessions. Use the [member identity runbook](../../identity/README.md) to start the local issuer, receive a verification email and exercise the member wallet with a real authenticator challenge.
+
+
+## Market discovery and paper spot tickets
+
+The browser groups active, fresh Binance and OKX spot tickers by native base and quote symbol. It shows the highest last trade, the aggregate reported quote volume and the change from the highest reported opening price. Public discovery is indicative. The order ticket separately reads the selected side of the live display book through CCXT Rust on the server. Matching native symbols are treated as equivalent in this paper market. Production routing needs independently qualified asset identities, limits and account-specific fee schedules.
+
+`POST /api/paper/spot` accepts a quote instruction with `pair`, `side` and a decimal-string `quantity`. An eligible level must cover the whole quantity, pass the active instrument and step checks and meet the timing limits. Buys use the highest eligible ask as the customer price and route by the lowest total cost. Sells use the lowest eligible bid and route by the highest net proceeds. A single eligible venue produces zero spread. The pilot charges a modeled taker fee of 10 basis points on the venue notional, rounded to eight quote decimal places. The customer sees the accepted price, fee, included gross paper spread and total before confirmation. Routing venue, book evidence and venue price are retained internally in PostgreSQL.
+
+A confirmation contains only the ticket ID. The database checks owner, expiry, enabled venue and available balance, then settles cash and holdings atomically. Retrying a confirmed ticket returns its original receipt. The independent SQL case passes a five-dollar fee on a one-BTC buy at 54,999 USD against a 55,000 USD customer price. The customer pays 55,005 USD and Eighred's gross simulated spread is 1 USD. Stock is marked at the last simulated venue fill with its observation time in the wallet. Fees and spread in this model are denominated in the actual quote unit. USDT is never translated to USD on the ledger.
+
+## Member community
+
+Migration 009 exposes read-only published basket details, sorted by official pin and the number of distinct other members with active funding. Private invitations also accept verified handles. Published trader profiles, photos, follows and moderated posts use the authenticated community endpoint. The public profile opt-in defaults off. Each visibility change applies to future reads of existing posts. Portfolio ranking requires separate consent. For each quote currency the ranking uses lifetime net gains divided by cumulative paper deposits. The start date and calculation time are visible. Stale marked positions and accounts without trades are excluded. Ranking entries share the same numeric rank for an equal unrounded return. Member paper gains, company spread and real receipts remain distinct.

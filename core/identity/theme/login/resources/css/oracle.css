@@ -1,0 +1,18 @@
+body, .pf-v5-c-login {
+  background: #080809;
+  color: #fff;
+  font-family: "Segoe UI", system-ui, sans-serif;
+}
+.pf-v5-c-login__main {
+  background: #141415;
+  color: #fff;
+  border: 1px solid #34353c;
+  border-radius: 12px;
+  box-shadow: none;
+}
+.pf-v5-c-login__main-footer-band, .pf-v5-c-login__main-footer { background: #1b1d1f; }
+.pf-v5-c-login__main .pf-v5-c-form__label, .pf-v5-c-login__main .pf-v5-c-title { color: #fff; }
+.pf-v5-c-button.pf-m-primary { background: #83c3ff; color: #080809; border-radius: 6px; }
+.pf-v5-c-login__main a { color: #83c3ff; }
+.pf-v5-c-form-control, .pf-v5-c-form-control input { background: #26272d; color: #fff; }
+#kc-header-wrapper { color: #fff; text-transform: none; letter-spacing: -.03em; }

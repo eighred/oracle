@@ -1,9 +1,12 @@
 mod advisory;
 mod basket_worker;
+mod community;
+mod member;
 mod news;
 mod paper;
 mod social;
 mod spot;
+mod spot_ticket;
 use axum::{
     Router,
     extract::{Path, State},
@@ -94,6 +97,17 @@ async fn session(
     login: (String, String),
 ) -> Result<(), StatusCode> {
     let failed = |_| StatusCode::SERVICE_UNAVAILABLE;
+    if login.0.starts_with('@') {
+        let proof = digest(login.1.as_bytes());
+        tx.query_one("SELECT set_config('oracle.operator',$1,true),set_config('oracle.token_digest',$2,true)", &[&login.0,&proof]).await.map_err(failed)?;
+        return tx
+            .query_one("SELECT oracle_read.principal()", &[])
+            .await
+            .map_err(failed)?
+            .get::<_, Option<String>>(0)
+            .map(|_| ())
+            .ok_or(StatusCode::UNAUTHORIZED);
+    }
     let salt: Option<Vec<u8>> = tx
         .query_one("SELECT oracle_read.login_salt($1)", &[&login.0])
         .await
@@ -252,7 +266,23 @@ async fn run() -> Result<(), &'static str> {
                 return Err("serve requires a restricted report reader");
             }
             let app = Router::new()
+                .route("/api/auth/config", get(member::config))
+                .route(
+                    "/api/auth/session",
+                    axum::routing::post(member::exchange).delete(member::logout),
+                )
+                .route(
+                    "/api/paper/spot",
+                    axum::routing::post(spot_ticket::handle)
+                        .layer(axum::extract::DefaultBodyLimit::max(2048)),
+                )
                 .route("/api/profile", get(social::profile))
+                .route(
+                    "/api/community",
+                    get(community::read)
+                        .post(community::change)
+                        .layer(axum::extract::DefaultBodyLimit::max(36_000)),
+                )
                 .route("/api/discover/baskets", get(social::community))
                 .route("/api/discover/news", get(news::feed))
                 .route(

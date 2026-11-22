@@ -14,7 +14,7 @@ use serde_json::{Value, json};
 use tokio_postgres::error::SqlState;
 
 type Failure = StatusCode;
-fn failure(e: tokio_postgres::Error) -> Failure {
+pub(super) fn failure(e: tokio_postgres::Error) -> Failure {
     match e.code() {
         Some(&SqlState::NO_DATA_FOUND) => StatusCode::NOT_FOUND,
         Some(&SqlState::INSUFFICIENT_PRIVILEGE) => StatusCode::FORBIDDEN,
@@ -23,7 +23,11 @@ fn failure(e: tokio_postgres::Error) -> Failure {
         _ => StatusCode::SERVICE_UNAVAILABLE,
     }
 }
-fn response(policy: &str, headers: &HeaderMap, result: Result<Value, Failure>) -> Response {
+pub(super) fn response(
+    policy: &str,
+    headers: &HeaderMap,
+    result: Result<Value, Failure>,
+) -> Response {
     let status = result.as_ref().err().copied().unwrap_or(StatusCode::OK);
     let principal = if status == StatusCode::UNAUTHORIZED {
         None
@@ -144,6 +148,12 @@ async fn apply(db: &Database, headers: &HeaderMap, input: Option<Value>) -> Resu
         } else {
             "SELECT oracle_social.change($1,$2::text::jsonb)::text"
         };
+        let command = if op == "invite" && p["member"].as_str().is_some_and(|v| v.starts_with('@'))
+        {
+            "SELECT oracle_social.member_invite(($2::text::jsonb->>'id')::uuid,$2::text::jsonb->>'member')::text WHERE $1::text='invite'"
+        } else {
+            command
+        };
         let id: String = tx
             .query_one(command, &[&op, &p.to_string()])
             .await
@@ -227,27 +237,51 @@ pub(super) async fn profile(
             .map_err(failure)?
             .get(0);
         tx.commit().await.map_err(failure)?;
-        serde_json::from_str(&raw).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+        let mut profile: Value =
+            serde_json::from_str(&raw).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        if let Some(events) = profile["activity"].as_array_mut() {
+            for entry in events {
+                if let Some(fills) = entry["receipt"]
+                    .get_mut("fills")
+                    .and_then(Value::as_array_mut)
+                {
+                    for fill in fills {
+                        if let Some(row) = fill.as_object_mut()
+                            && let Some(price) = row.remove("customerPrice")
+                        {
+                            row.insert("price".into(), price);
+                            row.remove("venue");
+                        }
+                    }
+                }
+            }
+        }
+        Ok(profile)
     }
     .await;
     response("paper_profile_v1", &headers, result)
 }
 
-pub(super) async fn community(State(db): State<Database>, headers: HeaderMap) -> Response {
+#[derive(serde::Deserialize)]
+pub(super) struct PublicBasket {
+    id: Option<String>,
+}
+pub(super) async fn community(
+    State(db): State<Database>,
+    axum::extract::Query(q): axum::extract::Query<PublicBasket>,
+) -> Response {
     let result = async {
-        let login = identity(&headers).ok_or(StatusCode::UNAUTHORIZED)?;
-        let mut client = db.lock().await;
-        let tx = client.transaction().await.map_err(failure)?;
-        session(&tx, login).await?;
-        let rows = tx.query("SELECT jsonb_build_object('id',b->'id','name',b->'name','creator',b->'creator',
-            'users',b->'users','pinned',b->'pinned','revision',b->'revision','items',b->'items')::text
-            FROM jsonb_array_elements(oracle_social.library()->'baskets') WITH ORDINALITY AS shelf(b,rank)
-            WHERE b->'public'='true'::jsonb ORDER BY rank LIMIT 6", &[])
-            .await.map_err(failure)?;
-        let baskets = rows.iter().map(|row|serde_json::from_str::<Value>(row.get(0)))
-            .collect::<Result<Vec<_>,_>>().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-        tx.commit().await.map_err(failure)?;
-        Ok(json!({"baskets":baskets}))
-    }.await;
-    response("community_baskets_v1", &headers, result)
+        let client = db.lock().await;
+        let value: String = client
+            .query_one(
+                "SELECT oracle_social.public_baskets($1::text::uuid)::text",
+                &[&q.id],
+            )
+            .await
+            .map_err(failure)?
+            .get(0);
+        serde_json::from_str(&value).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+    }
+    .await;
+    response("published_baskets_v1", &HeaderMap::new(), result)
 }

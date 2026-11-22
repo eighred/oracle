@@ -46,6 +46,20 @@ jobs:
           python3 ../core/crates/report_api/tools/local_pilot.py \
             --pg-bin "$pg_bin" --api-bin ../core/target/debug/oracle-report-api \
             --dist dist --port 0 --check npm run test:browser
+          python3 ../core/crates/report_api/tests/member_restart.py \
+            --pg-bin "$pg_bin" --api-bin ../core/target/debug/oracle-report-api --dist dist
+      - name: Verify member email and authenticator registration
+        working-directory: web
+        env:
+          ORACLE_OIDC_ISSUER: http://127.0.0.1:8180/realms/oracle
+        run: |
+          docker compose -f ../core/identity/compose.yaml up -d
+          trap 'docker compose -f ../core/identity/compose.yaml down' EXIT
+          curl --fail --silent --output /dev/null --retry 45 --retry-all-errors --retry-delay 2 "$ORACLE_OIDC_ISSUER/.well-known/openid-configuration"
+          pg_bin=$(dirname "$(find /usr/lib/postgresql -path '*/bin/initdb' | sort -V | tail -1)")
+          python3 ../core/crates/report_api/tools/local_pilot.py \
+            --pg-bin "$pg_bin" --api-bin ../core/target/debug/oracle-report-api \
+            --dist dist --port 8040 --check npm run test:member
   secrets:
     name: gitleaks
     runs-on: ubuntu-24.04

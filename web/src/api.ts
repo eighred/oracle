@@ -1,4 +1,11 @@
 import { Capacitor, CapacitorHttp } from "@capacitor/core";
+import {
+  initializeNative,
+  nativeLogin,
+  refreshNative,
+  logoutNative,
+} from "./native_account";
+import Keycloak from "keycloak-js";
 import { ref } from "vue";
 
 export const native = Capacitor.isNativePlatform();
@@ -26,7 +33,109 @@ export function shareBase() {
   return native ? pilotOrigin() + "/" : location.origin + location.pathname;
 }
 
+let provider: Keycloak | undefined;
+let expires = 0;
+let refresh: Promise<void> | undefined;
+export const accountState = ref("");
+export const memberHandle = ref("");
+export const accountReady = ref(false);
+export async function initializeAccount() {
+  try {
+    const res = native
+      ? await nativeRead("/api/auth/config", {}, "")
+      : await fetch("/api/auth/config", {
+          signal: AbortSignal.timeout(4000),
+          cache: "no-store",
+        });
+    if (!res.ok) return;
+    const config = await res.json();
+    if (!config.issuer) return;
+    if (native) {
+      await initializeNative(config.issuer, exchangeBearer, () => {
+        signOut();
+        accountState.value =
+          "Complete email verification and sign in with your authenticator.";
+      });
+      accountReady.value = true;
+      return;
+    }
+    provider = new Keycloak({
+      url: config.issuer.split("/realms/")[0],
+      realm: "oracle",
+      clientId: config.clientId,
+    });
+    const logged = await provider.init({
+      pkceMethod: "S256",
+      checkLoginIframe: false,
+      responseMode: "query",
+      redirectUri: location.origin + "/",
+    });
+    accountReady.value = true;
+    if (logged) {
+      await exchange();
+      const destination = sessionStorage.getItem("oracle.return");
+      sessionStorage.removeItem("oracle.return");
+      if (destination?.startsWith("#")) location.hash = destination;
+    }
+  } catch {
+    accountState.value =
+      "Member session unavailable. Complete email verification and sign in with your authenticator.";
+  }
+}
+export async function memberLogin(register = false) {
+  if (native) return nativeLogin(register);
+  if (location.hash.startsWith("#") && location.hash.length <= 512)
+    sessionStorage.setItem("oracle.return", location.hash);
+  if (!provider) return;
+  if (register) await provider.register();
+  else await provider.login({ prompt: "login" });
+}
+async function exchange() {
+  if (native) return exchangeBearer(await refreshNative());
+  if (!provider) throw Error("Account provider unavailable.");
+  await provider.updateToken(30);
+  if (!provider.token) throw Error("Sign in again.");
+  await exchangeBearer(provider.token);
+}
+async function exchangeBearer(bearer: string) {
+  const auth = "Bearer " + bearer;
+  const r = native
+    ? await nativeRead("/api/auth/session", { method: "POST" }, auth)
+    : await fetch("/api/auth/session", {
+        method: "POST",
+        headers: { Authorization: auth },
+        cache: "no-store",
+        redirect: "error",
+      });
+  if (!r.ok) throw Error("Member verification failed.");
+  const result = await r.json();
+  authorization = "Basic " + btoa(result.username + ":" + result.token);
+  accountState.value = "";
+  expires = result.expires;
+  memberHandle.value = result.username;
+  signedIn.value = true;
+}
+export async function endSession() {
+  if (memberHandle.value && authorization) {
+    const r = native
+      ? await nativeRead(
+          "/api/auth/session",
+          { method: "DELETE" },
+          authorization,
+        )
+      : await fetch("/api/auth/session", {
+          method: "DELETE",
+          headers: { Authorization: authorization },
+        });
+    if (!r.ok && r.status !== 401) throw Error("Could not end session.");
+    signOut();
+    if (native) return logoutNative();
+    await provider?.logout({ redirectUri: location.origin + "/" });
+  } else signOut();
+}
 export function signOut() {
+  memberHandle.value = "";
+  expires = 0;
   authorization = "";
   signedIn.value = false;
 }
@@ -52,12 +161,14 @@ async function nativeRead(path: string, init: RequestInit, auth: string) {
     readTimeout: 30000,
   });
   init.signal?.throwIfAborted();
-  return new Response(
+  const options = { status: response.status, headers: response.headers };
+  if (init.method === "HEAD" || [204, 205, 304].includes(response.status))
+    return new Response(null, options);
+  const body =
     typeof response.data === "string"
       ? response.data
-      : JSON.stringify(response.data),
-    { status: response.status, headers: response.headers },
-  );
+      : JSON.stringify(response.data);
+  return new Response(body, options);
 }
 
 export async function signIn(user: string, pass: string) {
@@ -85,9 +196,28 @@ export async function signIn(user: string, pass: string) {
 }
 
 export async function apiFetch(path: string, init: RequestInit = {}) {
-  if (!native) return fetch(path, init);
+  if (
+    !path.startsWith("/api/") ||
+    new URL(path, "https://oracle.test").origin !== "https://oracle.test"
+  )
+    throw Error("Invalid API path.");
+  if (memberHandle.value && Date.now() / 1000 >= expires - 15) {
+    refresh ??= exchange().finally(() => {
+      refresh = undefined;
+    });
+    try {
+      await refresh;
+    } catch {
+      signOut();
+      throw Error("Session expired.");
+    }
+  }
   const key = authorization;
-  const response = await nativeRead(path, init, key);
+  const headers = new Headers(init.headers);
+  if (key) headers.set("Authorization", key);
+  const response = native
+    ? await nativeRead(path, init, key)
+    : await fetch(path, { ...init, headers, redirect: "error" });
   if (response.status === 401 && key && key === authorization) signOut();
   return response;
 }

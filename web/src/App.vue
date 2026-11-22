@@ -1,24 +1,34 @@
 <script setup lang="ts">
-import { apiFetch, native, signedIn, signOut } from "./api";
+import {
+  apiFetch,
+  native,
+  signedIn,
+  endSession,
+  accountReady,
+  accountState,
+  memberHandle,
+  memberLogin,
+} from "./api";
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import Icon from "./Icon.vue";
 import EquityChart from "./EquityChart.vue";
 import PaperReview from "./PaperReview.vue";
 import SpotRisk from "./SpotRisk.vue";
+import PublicBasket from "./PublicBasket.vue";
 import NativeLogin from "./NativeLogin.vue";
 import Profile from "./Profile.vue";
 import Baskets from "./Baskets.vue";
 import Discover from "./Discover.vue";
 import PlatformSettings from "./PlatformSettings.vue";
 const selectedItems = ref<{ venue: string; pair: string; bps: number }[]>();
-const newPair = ref<string>();
+const newPair = ref<{ pair: string; venue: "binance" | "okx" }>();
 const basketPage = ref(0);
 function basketRisk(items: { venue: string; pair: string; bps: number }[]) {
   selectedItems.value = items;
   location.hash = "spot-risk";
 }
-function newBasket(pair: string) {
-  newPair.value = pair;
+function newBasket(pair: string, venue: "binance" | "okx") {
+  newPair.value = { pair, venue };
   location.hash = "baskets";
 }
 import {
@@ -247,6 +257,26 @@ onBeforeUnmount(() => {
         >
           <Icon name="Sidebar" />
         </button>
+        <nav
+          v-if="!narrow && consumerRoutes.includes(view.id)"
+          class="market-nav"
+          aria-label="Market navigation"
+        >
+          <a class="market-home" href="#discover">Oracle</a
+          ><a
+            href="#discover"
+            :aria-current="view.id === 'discover' ? 'page' : undefined"
+            >Markets</a
+          ><a
+            href="#baskets"
+            :aria-current="view.id === 'baskets' ? 'page' : undefined"
+            >Baskets</a
+          ><a
+            href="#profile"
+            :aria-current="view.id === 'profile' ? 'page' : undefined"
+            >Wallet</a
+          >
+        </nav>
         <span class="mobile-brand"
           ><span class="brand-mark" aria-hidden="true"></span>Oracle</span
         ><span class="crumb"
@@ -258,7 +288,14 @@ onBeforeUnmount(() => {
           view.title
         }}</span>
         <div v-if="view.id === 'discover'" id="discovery-search"></div>
-        <button v-if="native && signedIn" class="session-exit" @click="signOut">
+        <template v-if="accountReady && !signedIn"
+          ><button @click="memberLogin()">Sign in</button
+          ><button class="app-button" @click="memberLogin(true)">
+            Register
+          </button></template
+        >
+        <span v-if="memberHandle" class="caption">{{ memberHandle }}</span>
+        <button v-if="signedIn" class="session-exit" @click="endSession">
           Sign out
         </button>
         <div
@@ -296,8 +333,33 @@ onBeforeUnmount(() => {
         </div>
       </header>
       <main id="workstation">
+        <p v-if="accountState" role="status">{{ accountState }}</p>
         <h1 ref="heading" tabindex="-1">{{ view.title }}</h1>
-        <NativeLogin v-if="native && !signedIn && view.id !== 'discover'" />
+        <PublicBasket
+          v-if="view.id === 'baskets' && !signedIn && (accountReady || native)"
+          :key="basketPage"
+        />
+        <section
+          v-else-if="
+            accountReady &&
+            !signedIn &&
+            ['baskets', 'profile', 'spot-risk'].includes(view.id)
+          "
+          class="panel member-entry"
+        >
+          <h2>Access your Oracle account</h2>
+          <p>
+            Use your email or username and authenticator to open your paper
+            workspace.
+          </p>
+          <button class="app-button" @click="memberLogin()">
+            Sign in to Oracle
+          </button>
+          <button @click="memberLogin(true)">Register with email</button>
+        </section>
+        <NativeLogin
+          v-else-if="native && !signedIn && view.id !== 'discover'"
+        />
         <PlatformSettings v-else-if="view.id === 'settings'" />
         <Profile v-else-if="view.id === 'profile'" />
         <Discover v-else-if="view.id === 'discover'" @basket="newBasket" />
@@ -309,7 +371,7 @@ onBeforeUnmount(() => {
         />
         <SpotRisk
           v-else-if="view.id === 'spot-risk'"
-          :portfolio="portfolio"
+          :portfolio="memberHandle ? 'member-scenario' : portfolio"
           :basket="selectedItems"
         />
         <PaperReview

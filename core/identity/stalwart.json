@@ -1,0 +1,14 @@
+{
+  "smtpServer": {
+    "host": "mail.eighred.com",
+    "port": "465",
+    "ssl": "true",
+    "starttls": "false",
+    "auth": "true",
+    "user": "noreply@eighred.com",
+    "from": "noreply@eighred.com",
+    "fromDisplayName": "Eighred Oracle",
+    "envelopeFrom": "noreply@eighred.com",
+    "password": "${vault.stalwartSmtp}"
+  }
+}
