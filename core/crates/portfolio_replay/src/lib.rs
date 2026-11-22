@@ -86,6 +86,21 @@ enum Outcome {
     },
 }
 
+impl Snapshot {
+    /// Opening quote cash, base quantity and unit mark for fully covered snapshots.
+    pub fn spot_balances(&self) -> Option<(Amount, Amount, Amount)> {
+        match self.result {
+            Outcome::Complete {
+                cash,
+                quantity,
+                mark,
+                ..
+            } => Some((cash, quantity, mark)),
+            Outcome::Incomplete { .. } => None,
+        }
+    }
+}
+
 impl Dataset {
     fn validate(&self) -> Result<(), String> {
         if self.schema_version != 1

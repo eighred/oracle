@@ -33,6 +33,7 @@ jobs:
           cargo clippy --locked --workspace --all-targets -- -D warnings
           cargo test --locked --workspace
           python3 crates/portfolio_replay/tests/risk_reference.py
+          python3 crates/backtest/tests/accounting_reference.py
   secrets:
     name: gitleaks
     runs-on: ubuntu-24.04
