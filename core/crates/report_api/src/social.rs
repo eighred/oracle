@@ -81,6 +81,12 @@ async fn apply(db: &Database, headers: &HeaderMap, input: Option<Value>) -> Resu
         };
         let mut link = None;
         match op {
+            "fund" | "redeem" | "deposit" => {
+                p["request"] = json!(input["request"].as_str().ok_or(invalid)?);
+                p["currency"] = input["currency"].clone();
+                p["amount"] = input["amount"].clone();
+                p["revision"] = input["revision"].clone();
+            }
             "create" | "edit" => {
                 p["items"] = input["items"].clone();
                 p["name"] = input["name"].clone();
@@ -133,18 +139,20 @@ async fn apply(db: &Database, headers: &HeaderMap, input: Option<Value>) -> Resu
             }
             _ => return Err(invalid),
         }
+        let command = if matches!(op, "fund" | "redeem" | "deposit") {
+            "SELECT oracle_basket_paper.change($1,$2::text::jsonb)::text"
+        } else {
+            "SELECT oracle_social.change($1,$2::text::jsonb)::text"
+        };
         let id: String = tx
-            .query_one(
-                "SELECT oracle_social.change($1,$2::text::jsonb)::text",
-                &[&op, &p.to_string()],
-            )
+            .query_one(command, &[&op, &p.to_string()])
             .await
             .map_err(failure)?
             .get(0);
         json!({"id":id,"token":link})
     } else {
         let raw: String = tx
-            .query_one("SELECT oracle_social.library()::text", &[])
+            .query_one("SELECT (oracle_social.library() || jsonb_build_object('paper',oracle_basket_paper.statement()))::text", &[])
             .await
             .map_err(failure)?
             .get(0);
@@ -193,4 +201,34 @@ async fn settings(db: &Database, headers: &HeaderMap, input: Value) -> Result<Va
         .get(0);
     tx.commit().await.map_err(failure)?;
     serde_json::from_str(&raw).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+}
+
+#[derive(serde::Deserialize)]
+pub(super) struct Page {
+    before: Option<i64>,
+}
+
+pub(super) async fn profile(
+    State(db): State<Database>,
+    headers: HeaderMap,
+    axum::extract::Query(page): axum::extract::Query<Page>,
+) -> Response {
+    let result = async {
+        let login = identity(&headers).ok_or(StatusCode::UNAUTHORIZED)?;
+        let mut client = db.lock().await;
+        let tx = client.transaction().await.map_err(failure)?;
+        session(&tx, login).await?;
+        let raw: String = tx
+            .query_one(
+                "SELECT oracle_basket_paper.profile($1)::text",
+                &[&page.before],
+            )
+            .await
+            .map_err(failure)?
+            .get(0);
+        tx.commit().await.map_err(failure)?;
+        serde_json::from_str(&raw).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+    }
+    .await;
+    response("paper_profile_v1", &headers, result)
 }

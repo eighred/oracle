@@ -2,7 +2,7 @@
 import argparse
 import base64
 from getpass import getpass
-from contextlib import contextmanager, nullcontext
+from contextlib import contextmanager, nullcontext, ExitStack
 import hashlib
 import json
 import os
@@ -99,6 +99,7 @@ def main():
             sql(migration.with_name("003_source_scopes.sql").read_text())
             sql(migration.with_name("004_baskets.sql").read_text())
             sql(migration.with_name("005_platform_admin.sql").read_text())
+            sql(migration.with_name("006_basket_paper.sql").read_text())
             if args.platform_admin or args.check is not None:
                 sql("INSERT INTO oracle_admin.administrators VALUES ('operator')")
             if args.basket_curator or args.check is not None:
@@ -113,6 +114,7 @@ def main():
                 sql(f"INSERT INTO oracle_read.sessions VALUES ('{key}','{user}',decode('{salt.hex()}','hex'),now()+interval '8 hours',NULL)")
                 return key
             sql("CREATE ROLE pilot_reader LOGIN IN ROLE oracle_report_reader;"
+                "CREATE ROLE pilot_basket LOGIN IN ROLE oracle_basket_worker;"
                 "CREATE ROLE pilot_writer LOGIN IN ROLE oracle_report_writer;"
                 "CREATE ROLE pilot_paper LOGIN IN ROLE oracle_paper_operator;"
                 "INSERT INTO oracle_read.portfolio_grants VALUES ('operator','own-paper-01')")
@@ -169,7 +171,15 @@ def main():
                     subprocess.run(["python3", audit, export], check=True)
                 paper_revision = paper("publish", first, role="pilot_writer")["report_id"]
                 assert paper("publish", first, role="pilot_writer")["report_id"] == paper_revision
-            with api_server(args.api_bin, args.dist, database_env("pilot_reader"), args.port) as origin:
+            if args.check is not None:
+                recovery = Path(__file__).resolve().parents[1] / "tests/paper_wallet_recovery.sql"
+                sql(f"BEGIN; SET LOCAL oracle.operator='operator'; SET LOCAL oracle.token_digest='{key}';"
+                    + recovery.read_text() + "ROLLBACK;")
+            with api_server(args.api_bin, args.dist, database_env("pilot_reader"), args.port) as origin, ExitStack() as stack:
+                worker = subprocess.Popen([args.api_bin, "basket-worker" if args.check is None else "basket-worker-fixture"],
+                                          env=database_env("pilot_basket"))
+                stack.callback(worker.wait, timeout=10)
+                stack.callback(worker.terminate)
                 if args.check is None:
                     print(f"{origin} · sign in as operator with your temporary passphrase · press Enter to stop", flush=True)
                     input()
@@ -226,6 +236,8 @@ def main():
                     subprocess.run(args.check, check=True, env={**os.environ,"ORACLE_TEST_ORIGIN":origin,
                                    "ORACLE_TEST_PASSWORD":password, "ORACLE_DENIED_PASSWORD":denied})
                 basket_catalogs = {user: fetch(origin+"/api/baskets",user+":"+token) for user,token in (("operator",password),("observer",denied))}
+                profiles = {user: fetch(origin+"/api/profile",user+":"+token) for user,token in (("operator",password),("observer",denied))}
+                assert all(result[0] == 200 for result in profiles.values())
                 assert all(result[0] == 200 for result in basket_catalogs.values())
             # Restore the database to a second database on the isolated cluster.
             # Global roles stay in the cluster. Read the restored bytes through a fresh API connection.
@@ -236,6 +248,7 @@ def main():
             subprocess.run([pg/"pg_restore",*common,"--exit-on-error","-d","restored",backup],check=True)
             with api_server(args.api_bin,args.dist,database_env("pilot_reader","restored"),0) as restored:
                 for user,token in (("operator",password),("observer",denied)):
+                    assert fetch(restored+"/api/profile",user+":"+token) == profiles[user]
                     assert fetch(restored+"/api/baskets",user+":"+token) == basket_catalogs[user]
                 route = "/api/portfolios/own-paper-01/reports/" + revision
                 assert fetch(restored+route,"operator:"+password) == (200,revision,original)

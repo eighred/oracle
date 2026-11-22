@@ -1318,6 +1318,7 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "base64 0.22.1",
+ "num-rational",
  "oracle-backtest",
  "oracle-market-data",
  "oracle-portfolio-replay",

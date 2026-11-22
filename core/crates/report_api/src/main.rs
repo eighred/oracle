@@ -1,4 +1,6 @@
 mod advisory;
+mod basket_worker;
+mod news;
 mod paper;
 mod social;
 mod spot;
@@ -230,6 +232,9 @@ async fn report(
 async fn run() -> Result<(), &'static str> {
     let args: Vec<_> = env::args().skip(1).collect();
     match args.as_slice() {
+        [cmd] if matches!(cmd.as_str(), "basket-worker" | "basket-worker-fixture") => {
+            basket_worker::run(connect().await?, cmd == "basket-worker-fixture").await
+        }
         [cmd] if cmd == "spot-risk" => spot::cli().await,
         [cmd, rest @ ..] if cmd == "paper" => paper::command(&mut connect().await?, rest).await,
         [cmd] if cmd == "publish-synthetic" => publish(&connect().await?).await,
@@ -239,6 +244,7 @@ async fn run() -> Result<(), &'static str> {
             }
             let client = connect().await?;
             let role=client.query_one("SELECT NOT rolsuper AND NOT rolbypassrls AND pg_has_role(current_user,'oracle_report_reader','member')
+                AND NOT pg_has_role(current_user,'oracle_basket_worker','member')
                 AND NOT pg_has_role(current_user,'oracle_report_writer','member')
                 AND NOT pg_has_role(current_user,'oracle_paper_operator','member')
                 FROM pg_roles WHERE rolname=current_user",&[]).await.map_err(|_|"reader role check failed")?;
@@ -246,6 +252,8 @@ async fn run() -> Result<(), &'static str> {
                 return Err("serve requires a restricted report reader");
             }
             let app = Router::new()
+                .route("/api/profile", get(social::profile))
+                .route("/api/discover/news", get(news::feed))
                 .route(
                     "/api/platform-settings",
                     axum::routing::post(social::admin)
@@ -291,7 +299,7 @@ async fn run() -> Result<(), &'static str> {
 async fn main() -> ExitCode {
     if matches!(
         env::args().nth(1).as_deref(),
-        Some("paper" | "serve" | "spot-risk")
+        Some("paper" | "serve" | "spot-risk" | "basket-worker" | "basket-worker-fixture")
     ) {
         // CCXT translates venue exceptions after the panic hook runs. Keep bodies off the journal log.
         std::panic::set_hook(Box::new(|_| eprintln!("Oracle runtime exception")));
