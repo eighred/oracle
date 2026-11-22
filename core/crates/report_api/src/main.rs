@@ -7,6 +7,7 @@ mod news;
 mod paper;
 mod social;
 mod spot;
+mod spot_marks;
 mod spot_ticket;
 mod watchlist;
 use axum::{
