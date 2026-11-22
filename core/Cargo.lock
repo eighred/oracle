@@ -1322,6 +1322,7 @@ dependencies = [
  "oracle-market-data",
  "oracle-portfolio-replay",
  "oracle-spot-amount",
+ "reqwest",
  "ring",
  "serde",
  "serde_json",

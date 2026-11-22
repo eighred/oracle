@@ -6,7 +6,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use oracle_market_data::spot::{MAX_CLOSES, Venue, history, pair};
-use oracle_portfolio_replay::risk::basket::{Leg, evaluate};
+use oracle_portfolio_replay::risk::basket::{Leg, SizeUnit, evaluate_sized};
 use oracle_spot_amount::spot_decimal;
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -19,6 +19,10 @@ use std::{
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct Request {
+    #[serde(default)]
+    size_unit: SizeUnit,
+    #[serde(default)]
+    commentary: bool,
     cash: String,
     confidence_bps: u16,
     closes: usize,
@@ -88,13 +92,14 @@ async fn calculate(input: &Request) -> Result<Value, &'static str> {
             closes: &h.closes,
         })
         .collect::<Vec<_>>();
-    let (risk, contributions) = evaluate(&input.cash, &legs, input.confidence_bps)?;
+    let (risk, contributions) =
+        evaluate_sized(&input.cash, &legs, input.confidence_bps, input.size_unit)?;
     let positions=input.positions.iter().zip(&histories).zip(contributions).map(|((p,h),c)|
         json!({"venue":h.venue,"pair":p.pair,"market_id":h.market_id,"quantity":p.quantity,"tick":h.tick,
             "quantity_step":h.quantity_step,"mark":h.closes.last(),"shock_bps":p.shock_bps,"stress_pnl":c.stress_pnl,"exposure":c.exposure,
             "received_ms":h.received_ms,"metadata_sha256":h.metadata_sha256,"candles_sha256":h.candles_sha256})).collect::<Vec<_>>();
     Ok(
-        json!({"schema_version":1,"source":"public_spot_research","quote":quote,
+        json!({"schema_version":1,"source":"public_spot_research","size_unit":input.size_unit,"quote":quote,
         "first_open_ms":histories[0].first_open_ms,"as_of_ms":last+60_000,
         "known_at_ms":histories.iter().map(|h|h.received_ms).max(),"positions":positions,"risk":risk}),
     )
@@ -151,7 +156,15 @@ pub(super) async fn handle(
     let Ok(_slot) = SLOTS.try_acquire() else {
         return StatusCode::TOO_MANY_REQUESTS.into_response();
     };
-    let result = calculate(&input).await;
+    let mut result = calculate(&input).await;
+    if input.commentary
+        && let Ok(report) = &mut result
+    {
+        if let Err(status) = access(&db, &portfolio, login.clone()).await {
+            return status.into_response();
+        }
+        report["advisory"] = crate::advisory::explain(report).await;
+    }
     if let Err(status) = access(&db, &portfolio, login).await {
         return status.into_response();
     }

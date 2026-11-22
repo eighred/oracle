@@ -1,0 +1,35 @@
+# Oracle baskets and trading platform
+
+## Research workstation
+
+| User action | Current behavior and authority |
+|---|---|
+| Discover assets | The browser fetches public OKX spot tickers directly, without credentials or a referrer. Popular ranks USDT pairs by 24-hour quote volume. Gainers and losers rank signed changes from the 24-hour opening price. The top 25 appear in each view. Five-minute-old quotes age out. A market can seed a basket draft. The OKX website's proprietary hot ranking is a separate measure. |
+| Create a basket | An authenticated member saves a private template with up to eight venue/pair weights totaling 10,000 basis points in one quote currency. Each edit preserves an immutable composition revision. An outdated editor must reload before saving. |
+| Copy a basket | Copying freezes the source composition and revision in the member's private library. The copy has its own owner, edits and publication choice. Repeated copy requests from that member return the same copy. |
+| Join a basket | Joining subscribes the member to the current source composition. The owner retains edit rights. Joined views refresh while open. Leaving ends membership. Access is checked on each read. Copy and join are independent choices and neither creates a position. |
+| Publish and rank | Public baskets are visible to authenticated workstation members. Popular baskets rank by unique users who joined or copied the source, excluding the creator. A user who does both counts once. Only a nominated curator can pin their own published Eighred basket. Making it private clears the pin. |
+| Share privately | The owner invites an existing username or issues a password-protected seven-day link. The link secret travels in a URL fragment and the browser removes it after reading. The server stores a token digest and a salted password verifier. The owner can revoke an invitation, rotate a link or revoke link access. Independent copies retain their saved composition. |
+| Review risk | A template opens as a hypothetical portfolio of 100 quote units. The Rust server retrieves independent CCXT instrument metadata and completed candles. It applies synchronized shocks to exact quote exposures. Results carry source times, receipt digests, sample size, VaR, expected shortfall and signed stress contributions. |
+| Ask for AI commentary | An explicit opt-in sends model name, sample size, confidence, position count and stress direction to a configured loopback LiteLLM gateway. A gateway outage leaves the deterministic calculation available. Commentary has no access to credentials, holdings, payment events or order commands. |
+| Administer connections and rates | A separately appointed platform administrator stages or disables Binance and OKX company connection records. The UI displays a vault reference. A one-action fee proposal appends a future-effective rate in basis points to the review history. Proposals have no collection effect. |
+
+The local workstation includes authenticated identities and a disposable PostgreSQL database. Public visibility here means visibility inside that installation. Customer identity onboarding, internet hosting and persistent operations have separate acceptance criteria.
+
+## Company-account execution design
+
+1. **Funding.** The payment service creates a provider payment intent or a customer-specific bank reconciliation reference. Store the provider's token and transaction reference. Card details remain in the provider-hosted flow. Credit the customer's currency ledger only from verified settlement evidence. Record pending, settled, disputed, reversed and refunded amounts separately.
+2. **Beneficial ownership.** Maintain per-customer balances, reservations, open positions, fees and cash in transit. Maintain a distinct clearing ledger for each company venue account. Reconcile customer liabilities, treasury assets and external confirmations by currency. Hold further allocation on an unexplained difference.
+If a future product accepts capital into the same managed basket, record a subscription or redemption separately from social membership. Price units at a dated NAV cutoff, post customer cash and basket units atomically, and reconcile outstanding units to the sum of member holdings. Define dealing windows, fees, rounding and treatment of late or reversed funds before running the first sandbox subscription.
+
+3. **Order admission.** A separately approved investor mandate fixes eligible baskets and revisions, instruments, venue, spend limits, turnover, daily loss and expiry. The isolated execution service checks reservations, independently sourced prices and limits. It resolves trade-only company credentials from the vault. Disabling a connection stops new orders and starts reconciliation for open orders. The first integration uses a sandbox.
+4. **Automatic rebalancing.** A change to a joined template can generate a dated proposal. Only a valid automation mandate can advance a proposal to admission. Use idempotent client order IDs. Reconcile an ambiguous acknowledgement before resending. Allocate partial fills and fees to participating accounts under a frozen allocation policy. Verify restart, duplicate and kill-switch cases in paper trading before a funded review.
+5. **Profit sharing.** An eligible agreement identifies the profit basis, high-water mark, hurdle, applicable expenses and treatment of deposits and withdrawals. A rate proposal receives independent approval and applies prospectively. Preserve each statement's version. Reproduce a historic statement after a rate change, reverse chargebacks explicitly and separate fee accrual from collection.
+
+| Gate | Evidence needed to advance |
+|---|---|
+| Payment and custody sandbox | A signed provider event credits one synthetic user exactly once. Duplicate events, bank reference mismatches, reversals and partial settlement reconcile against the omnibus control account. |
+| Company venue sandbox | Two customers' fills, fees and rounding residuals add up to the broker confirmation. Retry after ambiguous acknowledgement, revoke one mandate and stop new admission on a disabled connection. |
+| Funded customer product | Selected jurisdiction and operating entity, appropriate provider and custody arrangements, company exchange account terms for client assets, approved mandates, independent controls, capital approval and operational recovery evidence. |
+
+The supplied Risk Core 2.0 plan informs the quantitative research roadmap. Factor attribution, liquidity, validation across market regimes, alpha selection and instrument-specific paper costs continue under [institutional risk #42](https://github.com/eighred/oracle/issues/42) and [paper mandates #43](https://github.com/eighred/oracle/issues/43). Delivery of customer funding and allocation is tracked in [#45](https://github.com/eighred/oracle/issues/45), isolated execution in [#28](https://github.com/eighred/oracle/issues/28), and performance-fee approvals in [#9](https://github.com/eighred/oracle/issues/9).

@@ -1,4 +1,6 @@
+mod advisory;
 mod paper;
+mod social;
 mod spot;
 use axum::{
     Router,
@@ -85,9 +87,8 @@ fn identity(headers: &HeaderMap) -> Option<(String, String)> {
     Some((user.to_owned(), token.to_owned()))
 }
 
-async fn authorize(
+async fn session(
     tx: &tokio_postgres::Transaction<'_>,
-    resource: &str,
     login: (String, String),
 ) -> Result<(), StatusCode> {
     let failed = |_| StatusCode::SERVICE_UNAVAILABLE;
@@ -116,6 +117,21 @@ async fn authorize(
     )
     .await
     .map_err(failed)?;
+    let principal: Option<String> = tx
+        .query_one("SELECT oracle_read.principal()", &[])
+        .await
+        .map_err(failed)?
+        .get(0);
+    principal.map(|_| ()).ok_or(StatusCode::UNAUTHORIZED)
+}
+
+async fn authorize(
+    tx: &tokio_postgres::Transaction<'_>,
+    resource: &str,
+    login: (String, String),
+) -> Result<(), StatusCode> {
+    session(tx, login).await?;
+    let failed = |_| StatusCode::SERVICE_UNAVAILABLE;
     let access = tx
         .query_one(
             "SELECT oracle_read.principal(),oracle_read.allowed($1)",
@@ -230,6 +246,17 @@ async fn run() -> Result<(), &'static str> {
                 return Err("serve requires a restricted report reader");
             }
             let app = Router::new()
+                .route(
+                    "/api/platform-settings",
+                    axum::routing::post(social::admin)
+                        .layer(axum::extract::DefaultBodyLimit::max(4096)),
+                )
+                .route(
+                    "/api/baskets",
+                    get(social::list)
+                        .post(social::change)
+                        .layer(axum::extract::DefaultBodyLimit::max(16_384)),
+                )
                 .route(
                     "/api/portfolios/{portfolio}/{collection}/{version}",
                     get(report),
