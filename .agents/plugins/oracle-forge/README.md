@@ -1,19 +1,142 @@
 # Oracle Forge
 
-Oracle Forge 0.1.0 is the repository-owned development plugin for Eighred Oracle. Its [commands](skills/commands/SKILL.md) route changes to the appropriate evidence. It runs locally with Git and Python 3.11+. It requests no credentials, MCP server or background process.
+Port of Eighred Kanz Forge at e8998af758d38ded6c25e853ef21e451e0fe425b. The command catalog, nine skill routes, three profiles and development tools follow that revision. Security companions use defensive source review. Historical Kanz paths and runtime examples apply only when the current checkout provides the component. Oracle AGENTS.md establishes actual ownership.
 
-## Discover and install
 
-The repository discovery skill works in a trusted Oracle checkout. For an installed package, run in the reviewed repository root:
+Oracle Forge is Eighred's repository-owned engineering and AI-agent coordination
+plugin. Kanz is the institutional investment operating system it helps build:
+a shared financial model, controlled execution and auditable state across secure
+interfaces. Forge helps developers and Codex investigate current source, choose
+the owning component, implement changes, coordinate authorized workers, verify
+results and deliver reviewed work.
 
-```sh
+## Start in this repository
+
+Open a trusted checkout in Codex and describe the result you need. For example,
+“Why did this PR fail?” asks Codex to inspect the failing job. “Fix the
+failure and test the change” also asks it to repair and verify the code.
+Codex selects the relevant Forge workflows as evidence changes. Use `Oracle /help`
+to browse shortcuts or `Oracle /doctor` to inspect what this chat can use.
+The repository skill at `.agents/skills/oracle-forge/SKILL.md` routes directly to
+this package's maintained workflows. It needs no plugin-cache installation.
+Repository skill discovery and installed plugin discovery are separate states;
+`/doctor` reports which source this Chat actually loaded.
+
+The repo marketplace marks Forge `INSTALLED_BY_DEFAULT`, and the project
+`.codex/config.toml` enables `oracle-forge@oracle-local`. Supporting trusted clients
+can install/refresh it through their marketplace lifecycle. Client versions and
+administrator policy determine that behavior. A manifest cannot force an
+untrusted checkout to install a plugin. The repository skill provides the
+checkout workflow on clients that discover repository skills but do not
+materialize repo-marketplace defaults.
+
+For explicit installation, run from a stable reviewed checkout root:
+
+```powershell
+python -B .agents/plugins/oracle-forge/scripts/validate.py --tracked
+python -B .agents/plugins/oracle-forge/scripts/provenance.py
 codex plugin marketplace add .
 codex plugin add oracle-forge@oracle-local
-codex plugin list --json
-python -B .agents/plugins/oracle-forge/scripts/forge.py doctor
-python -B .agents/plugins/oracle-forge/scripts/forge.py verify
 ```
 
-Open a fresh Oracle chat to load the installed skills. Ask “Use Oracle Forge to verify this checkout.” The doctor reports the checkout revision, package version and implemented workflows. Verify checks the source package, license digest, discovery wiring, tracked layout and local documentation links. Neither command connects to a remote.
+Start a fresh Chat and run `Oracle /doctor` after installation or an update.
+Compare the loaded source with the checkout and `codex plugin list --json`.
+Do not edit the installed cache. See the official
+[marketplace and project settings](https://developers.openai.com/plugins/build/plugins#enable-or-disable-a-plugin-for-a-repo)
+for supported discovery, trust and enablement behavior.
 
-When changing packaged files, increment the plugin version, run the local checks and install from the reviewed revision using the supported CLI. For rollback use a separate checkout of the reviewed prior version, remove the plugin and its marketplace with `codex plugin remove oracle-forge@oracle-local` and `codex plugin marketplace remove oracle-local`, then repeat installation there and verify the reported version. Keep the marketplace source checkout at a stable path.
+## Workflows
+
+| Request in Codex Chat | Outcome |
+|---|---|
+| `Oracle /work #1234` | Resolve the issue through implementation, PR checks, authorized merge and merged-main acceptance. |
+| `Oracle /work` | Select feasible unfinished work from current source, branches, PRs and Issues. |
+| `Oracle /ship #1234` | Review and repair the PR; merge requires the applicable specific authority. |
+| `Oracle /organize [scope]` | Review directory ownership, names, README accuracy and all consumers of a proposed move. |
+| `Oracle /branches [fix]` | Inspect unfinished branches; an explicit recovery request continues useful work. |
+| `Oracle /audit [fix]`, `Oracle /secure [fix]` | Investigate evidenced engineering or security gaps; `fix` also authorizes scoped repairs. |
+| `Oracle /plan`, `Oracle /evolve` | Order evidenced work or propose justified improvements. |
+| `Oracle /work subagents 2` | Request native parallel workers, subject to host capacity and independent ownership. |
+| `Oracle /doctor`, `Oracle /status`, `Oracle /help all` | Inspect observed capability, current work or the full command catalog. |
+
+These are Chat workflows, interpreted by [commands](skills/commands/SKILL.md),
+not terminal executables. With the installed plugin, explicit invocation is
+`$oracle-forge:commands /work #1234`; with repository discovery, use `$oracle-forge`.
+Ordinary development requests select the same skills by the actual change.
+
+The [organization skill](skills/repository-organization/SKILL.md) applies the
+shared [Eighred organization standard](skills/repository-organization/references/eighred-standard.md).
+Developers enter it through [CONTRIBUTING.md](../../../CONTRIBUTING.md).
+The standard adapts Go's private-package and command boundaries to Kanz's
+multiple runtimes, preserves deployed identities and requires complete path
+consumer verification. It does not copy another project's skeleton.
+
+## Ownership and coordination
+
+[AGENTS.md](../../../AGENTS.md) owns platform constraints. Forge's skills own
+engineering workflows; [commands.json](skills/commands/commands.json) maps the
+requests. Security guidance follows identity, tenant, input, release and agent
+trust boundaries. Financial verification follows pricing, money, portfolio and
+strategy claims. Cross-component work resolves actual callers and typed contracts.
+
+[Repository engineering](skills/commands/references/repository-engine.md)
+reconciles existing work before starting a competing branch and uses changed-input
+re-entry conditions for known blockers. [Validation readiness](skills/commands/references/validation-readiness.md)
+separates code that can be written from work that can actually be delivered.
+[Delivery coordination](skills/commands/references/delivery-coordination.md)
+keeps initial requested outcomes separate from additional discovered repairs.
+
+Native workers require explicit parallel-work scope and host tools. The root
+coordinator alone dispatches; workers return evidence and do not re-delegate.
+The [parallel protocol](skills/commands/references/parallel-work.md) assigns
+owned files, acceptance and dependencies. The [mapper](agents/oracle_mapper.toml),
+[reviewer](agents/oracle_reviewer.toml) and [security](agents/oracle_security.toml)
+profiles supply instructions; files alone do not register or launch host agents.
+No separate scheduler, agent runtime or background service is installed.
+
+## Context and dependencies
+
+Stable rules live in AGENTS.md, decisions and blockers in Issues, review evidence
+in PRs and implementation history in git. Forge retrieves relevant current source
+and revalidates historical conclusions. It maintains no conversation-memory or
+project-state database. The retired pricing-receipt commands and utility are no
+longer packaged; existing user-owned receipt databases are left untouched.
+
+[Version-aware source research](skills/commands/references/context-and-evidence.md)
+uses official documentation and tagged source. The standard-library
+[upstream helper](scripts/upstream.py) observes public releases, publisher
+candidates and HTTPS Git refs. Discovery does not install or approve an upgrade.
+[DEPENDENCIES.md](DEPENDENCIES.md) documents actual tool requirements and the
+licensed, pinned security-methodology import.
+
+## Verification and maintenance
+
+From the repository root:
+
+```powershell
+python -B .agents/plugins/oracle-forge/scripts/validate.py --tracked
+python -B .agents/plugins/oracle-forge/scripts/provenance.py
+python -B -m unittest discover -s .agents/plugins/oracle-forge/scripts -p 'test_*.py' -v
+python -B .agents/plugins/oracle-forge/scripts/test_install.py
+```
+
+The last command explicitly tests fresh repository discovery and a separate
+supported CLI installation in disposable profiles. It compares every installed
+file with the candidate snapshot. Importing the test never installs anything.
+On Linux, also run `node --test .agents/plugins/oracle-forge/skills/security-audit/*.test.cjs`;
+the protected-input validators require Linux facilities.
+[Forge CI](../../../.github/workflows/oracle-forge.yml) enforces the offline gates.
+
+`/doctor` distinguishes implemented, configured, operational, incomplete and
+unverified capabilities. Package validation proves structure; CLI discovery
+proves the named CLI's discovery; a fresh Chat must establish its loaded source.
+Native coordination requires observed dispatch and integration. A security or
+financial claim requires evidence at that actual boundary. Skipped dependency
+tests, a source digest and historical CI never establish current acceptance.
+
+Review and commit upgrades in a clean checkout. Check imported upstream freshness
+and retain its license/provenance. Run offline checks, disposable installation and
+applicable CI before updating a live profile. Preserve current user configuration,
+dirty work and held branches. Roll back by reinstalling the previous reviewed
+checkout through the same marketplace commands, then verify a fresh Chat.
+Forge installation grants no trading, deployment or production-data authority.

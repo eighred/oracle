@@ -12,7 +12,8 @@ from urllib.parse import unquote, urlsplit
 
 PACKAGE = Path(".agents/plugins/oracle-forge")
 LICENSE_SHA256 = "f6a49da8cdb7464016d05e626c105429b35360fe59e1fa4261ad477386281141"
-SKILLS = ("commands", "engineering", "quant-verification", "security-review")
+SKILLS = ("commands", "engineering-standard", "financial-verification", "issue-archaeology",
+          "oracle-verify", "pr-delivery", "repository-organization", "security-audit", "stack-routing")
 REQUIRED = (
     "README.md", "AGENTS.md", "CONTRIBUTING.md", "SECURITY.md", "LICENSE.md",
     ".github/CODEOWNERS", ".github/pull_request_template.md", ".github/ISSUE_TEMPLATE/work.yml",
@@ -37,7 +38,7 @@ def validate(root):
     market_path = Path(".agents/plugins/marketplace.json")
     skill_files = [PACKAGE / "skills" / name / "SKILL.md" for name in SKILLS]
     expected = {*map(Path, REQUIRED), *skill_files, market_path, manifest_path,
-                PACKAGE / "scripts/forge.py", Path(".codex/config.toml")}
+                PACKAGE / "scripts/validate.py", Path(".codex/config.toml")}
     for path in sorted(expected - tracked):
         errors.append(f"Missing from Git index: {path.as_posix()}")
     if hashlib.sha256((root / "LICENSE.md").read_bytes()).hexdigest() != LICENSE_SHA256:
@@ -62,6 +63,8 @@ def validate(root):
     for path in sorted(tracked):
         if path.suffix.lower() != ".md" or path == Path("LICENSE.md"):
             continue
+        if path.is_relative_to(PACKAGE):
+            continue  # Package references are checked by its own validator.
         content = (root / path).read_text(encoding="utf-8")
         for dest in re.findall(r"\[[^\]\n]*\]\(([^()\s]+)\)", content):
             url = urlsplit(dest)
