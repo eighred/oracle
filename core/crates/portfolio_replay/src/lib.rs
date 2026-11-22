@@ -1,5 +1,6 @@
 //! Replay a reviewed point-in-time dataset for the first spot portfolio.
 
+pub mod risk;
 use oracle_spot_amount::Amount;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};

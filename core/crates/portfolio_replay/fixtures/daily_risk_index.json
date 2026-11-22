@@ -1,0 +1,11 @@
+{
+  "instrument_revision": "BTC-USDT-fixture-v1",
+  "quote": "USDT",
+  "closes": [
+    {"close_ms":1766793600000,"known_ms":1766793600500,"index":"100.00"},
+    {"close_ms":1766880000000,"known_ms":1766880000500,"index":"100.00"},
+    {"close_ms":1766966400000,"known_ms":1766966400500,"index":"98.00"},
+    {"close_ms":1767052800000,"known_ms":1767052800500,"index":"94.08"},
+    {"close_ms":1767139200000,"known_ms":1767139200500,"index":"77.1456"}
+  ]
+}

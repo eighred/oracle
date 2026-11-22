@@ -9,6 +9,12 @@ const UNIT: u64 = 100_000_000;
 impl Amount {
     pub const ZERO: Self = Self(0);
 
+    pub const ATOMS_PER_UNIT: u64 = UNIT;
+
+    pub fn atoms(self) -> u64 {
+        self.0
+    }
+
     pub fn parse(text: &str) -> Option<Self> {
         let (whole, fraction) = match text.split_once('.') {
             Some((whole, fraction)) if !fraction.is_empty() => (whole, fraction),
