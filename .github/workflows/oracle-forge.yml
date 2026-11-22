@@ -1,0 +1,22 @@
+name: Oracle Forge
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Validate tracked package and imported file digests
+        run: |
+          python3 -B .agents/plugins/oracle-forge/scripts/validate.py --tracked
+          python3 -B .agents/plugins/oracle-forge/scripts/provenance.py
+      - name: Run Forge offline regressions
+        run: python3 -B -m unittest discover -s .agents/plugins/oracle-forge/scripts -p 'test_*.py' -v
+      - name: Exercise the audit report validators on Linux
+        run: node --test .agents/plugins/oracle-forge/skills/security-audit/*.test.cjs

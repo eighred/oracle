@@ -1,20 +1,21 @@
 {
   "name": "oracle-forge",
-  "version": "0.1.0",
-  "description": "Develop and verify Oracle's own-account research core and web workstation.",
+  "version": "0.16.9",
+  "description": "Eighred engineering and AI-agent coordination for Oracle: organize, investigate, implement, verify and deliver.",
   "author": {
     "name": "Eighred"
   },
   "skills": "./skills/",
   "interface": {
     "displayName": "Oracle Forge",
-    "shortDescription": "Route Oracle changes and verify their evidence.",
+    "shortDescription": "Choose Oracle workflows for investigation, changes and delivery.",
+    "longDescription": "Eighred workflows for repository organization, source investigation, controlled implementation, explicit native-agent coordination, security and financial verification, and reviewed delivery. Uses current code, AGENTS.md, Issues and PR evidence.",
     "developerName": "Eighred",
     "category": "Productivity",
     "capabilities": [
       "Read",
       "Write"
     ],
-    "defaultPrompt": "Use Oracle Forge to identify the owning Oracle component and verify the requested change."
+    "defaultPrompt": "Use Oracle Forge for this task, resolve its owning component and verify the result against current source."
   }
 }

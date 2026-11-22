@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-FORGE = Path(".agents/plugins/oracle-forge/scripts/forge.py")
+FORGE = Path("tools/check_foundation.py")
 
 
 class FoundationTest(unittest.TestCase):
@@ -16,13 +16,15 @@ class FoundationTest(unittest.TestCase):
         scratch = tempfile.TemporaryDirectory()
         self.addCleanup(scratch.cleanup)
         self.repo = Path(scratch.name)
-        files = subprocess.check_output(["git", "-C", str(ROOT), "ls-files", "-z"])
-        for raw in files.split(b"\0"):
-            if raw:
-                path = Path(raw.decode())
-                target = self.repo / path
-                target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(ROOT / path, target)
+        files = subprocess.check_output(["git", "-C", str(ROOT), "ls-files", "--stage", "-z"])
+        for entry in filter(None, files.split(b"\0")):
+            metadata, raw = entry.split(b"\t", 1)
+            if metadata.startswith(b"160000 "):
+                continue  # These foundation checks read parent-owned files only.
+            path = Path(raw.decode())
+            target = self.repo / path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(ROOT / path, target)
         self.git("init", "-b", "main")
         self.git("add", ".")
 

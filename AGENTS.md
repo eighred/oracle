@@ -21,6 +21,8 @@ Read status, branch, affected instructions, consumers and existing issue evidenc
 
 Use English in source, tests, documentation, commits, issues and pull requests. Use English snake_case for owned directories, preserving exact tool paths such as `.github/ISSUE_TEMPLATE` and skill names. Locate implementation, migrations and tests beside their owning domain. Share code when two concrete consumers agree on its behavior. A new domain's README identifies callers, commands, data authority and recovery limits. Update imports, build paths, CI, links and deployment consumers together on moves.
 
+Use a single private product workspace by default. A real partial-read assignment triggers the [module access and integration procedure](docs/engineering/workspace.md). The parent pins the reviewed module SHA and tests its consumers. The [architecture](docs/architecture/oracle.md) and [engineering handoff](docs/engineering/ai_delivery_prompt.md) govern Oracle implementation. Interpret historical Kanz examples in the imported Forge workflows against Oracle's actual source and runtime owners.
+
 Use GitHub Issues for priority, acceptance and deferred decisions once hosted. Keep one kind, priority and area per issue. Record the source, dependency, expected evidence and blocker. Keep local coordination drafts outside the tracked repository. PRs identify the exact tested revision, independent expectations, dependency evidence and skips. Passing local tooling establishes checkout behavior only. Require separate evidence for hosted CI, operations and capital use.
 
 ## Trust and source handling

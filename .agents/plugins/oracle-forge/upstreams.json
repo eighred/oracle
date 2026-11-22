@@ -1,0 +1,170 @@
+[
+  {
+    "repo": "cloudflare/security-audit-skill",
+    "url": "https://github.com/cloudflare/security-audit-skill",
+    "pin": "c1c8a8c1471069fb0e188eeaff69b8e8db6564a8",
+    "observed_head": "c1c8a8c1471069fb0e188eeaff69b8e8db6564a8",
+    "release": null,
+    "checked_at": "2026-11-03T20:23:50.908119+00:00",
+    "license": "MIT",
+    "license_sources": [
+      {
+        "path": "LICENSE",
+        "blob": "6dbc9ecb3a5b9080e95b962869e8c7ab16cfdc20"
+      }
+    ],
+    "adoption": "vendored with overlay",
+    "imports": [
+      {
+        "source": "LICENSE",
+        "blob": "6dbc9ecb3a5b9080e95b962869e8c7ab16cfdc20",
+        "local": "skills/security-audit/LICENSE",
+        "sha256_lf": "e598e694aa506650c7192d5ea3be0e50aca0d356ea00551c53429f0b01eb6391",
+        "adapted": false
+      },
+      {
+        "source": "skills/security-audit/AI-AND-LLM.md",
+        "blob": "02ba9039eca4cec811fefc77bce0d7349b379aae",
+        "local": "skills/security-audit/AI-AND-LLM.md",
+        "sha256_lf": "a35ad5e1dc29b3d4abb07ed6d6a44abed25b42e56106dc8d698c9f51a3bcfb22",
+        "adapted": true
+      },
+      {
+        "source": "skills/security-audit/ATTACK-CLASSES.md",
+        "blob": "18a2beb4dbb554fb52b0a0293b8bd9108207f8fa",
+        "local": "skills/security-audit/ATTACK-CLASSES.md",
+        "sha256_lf": "320d126976cf2dd9447741241468481e0b8fcd3bfd7f712e74e11365646583d8",
+        "adapted": true
+      },
+      {
+        "source": "skills/security-audit/CLIENT-SIDE.md",
+        "blob": "8ba673e9e7e3d02f5518aa0219bcbeec7957531b",
+        "local": "skills/security-audit/CLIENT-SIDE.md",
+        "sha256_lf": "f17d48b5e28e730145688b1cb81871199eac884bfbd97dd2286eb761c5f833e8",
+        "adapted": true
+      },
+      {
+        "source": "skills/security-audit/CLOUD-AND-DEPLOYMENT.md",
+        "blob": "5569f76c7740744aa3f60aaa89eaefe275f2e6c9",
+        "local": "skills/security-audit/CLOUD-AND-DEPLOYMENT.md",
+        "sha256_lf": "644159b1b1ee7fe40f7fb618e95849aa031987008fa8c36af457ef1256019fe1",
+        "adapted": true
+      },
+      {
+        "source": "skills/security-audit/DATA-ISOLATION-AND-LIFECYCLE.md",
+        "blob": "0cba1fa463b62c9b0caba710a201e29c1eecd0ec",
+        "local": "skills/security-audit/DATA-ISOLATION-AND-LIFECYCLE.md",
+        "sha256_lf": "8e997e4331dc418d5c0d17edd1982a2700995adaff7a2dbd4e1851a0d4e81f48",
+        "adapted": true
+      },
+      {
+        "source": "skills/security-audit/DESKTOP-MOBILE-AND-LOCAL-IPC.md",
+        "blob": "d6230098651bff6348d3868c11f566bfb1306e7f",
+        "local": "skills/security-audit/DESKTOP-MOBILE-AND-LOCAL-IPC.md",
+        "sha256_lf": "790220a6cc47d35481a8a554398e44599902902e49f0a51efa65216bce4c75d1",
+        "adapted": true
+      },
+      {
+        "source": "skills/security-audit/HUNTING.md",
+        "blob": "377d4dcfbe88a049379448cd7892717185401597",
+        "local": "skills/security-audit/HUNTING.md",
+        "sha256_lf": "f42a915feed5ad606da80316dd2af92f1a46b1277bf981f83c1a400f6596f689",
+        "adapted": true
+      },
+      {
+        "source": "skills/security-audit/MEMORY-SAFETY-AND-BINARY.md",
+        "blob": "86ff4920752661fc4a31a35ca4f962ace5dd5f48",
+        "local": "skills/security-audit/MEMORY-SAFETY-AND-BINARY.md",
+        "sha256_lf": "8f68d02facc2ea17d284eb0120f13d85d1893c81e8494e6befbb35d194dd041f",
+        "adapted": true
+      },
+      {
+        "source": "skills/security-audit/PROTOCOLS-RPC-AND-MESSAGING.md",
+        "blob": "b04ab88f852224838fdc9683d9fcccd858b0778a",
+        "local": "skills/security-audit/PROTOCOLS-RPC-AND-MESSAGING.md",
+        "sha256_lf": "893dff5ee34f2ad90666a78f783824fade53b8d83c08ac322055cc82145f4880",
+        "adapted": true
+      },
+      {
+        "source": "skills/security-audit/RECONNAISSANCE.md",
+        "blob": "1a170a93ab76b93dc5ac268a5b690beb423a8aa9",
+        "local": "skills/security-audit/RECONNAISSANCE.md",
+        "sha256_lf": "4f872b561d4ff7d38882fedb7c0fe406852c1d2097dd87059727caea858bd71e",
+        "adapted": true
+      },
+      {
+        "source": "skills/security-audit/RESOURCE-EXHAUSTION-AND-AVAILABILITY.md",
+        "blob": "6cbbd1e2cfa482068c8279c2f7da9db43d3f54b8",
+        "local": "skills/security-audit/RESOURCE-EXHAUSTION-AND-AVAILABILITY.md",
+        "sha256_lf": "daadd4dcb068429ab1a4ca879674eb0051947b28b24af46e2312ffdc6d2b1808",
+        "adapted": true
+      },
+      {
+        "source": "skills/security-audit/SKILL.md",
+        "blob": "92178dad304d3f63e37582a297026a7874e12c62",
+        "local": "skills/security-audit/SKILL.md",
+        "sha256_lf": "2d27c8a05ed4029843dab38716357bd48cad1db79813b280e3637f957ceaaeca",
+        "adapted": true
+      },
+      {
+        "source": "skills/security-audit/SUPPLY-CHAIN-AND-RELEASE.md",
+        "blob": "bf96aed0803bc07471483ab129dea86759c3e305",
+        "local": "skills/security-audit/SUPPLY-CHAIN-AND-RELEASE.md",
+        "sha256_lf": "c33bb144a604f131b7dd53e6cf546c6bed351fe53ba617bd8acf6d2833297236",
+        "adapted": true
+      },
+      {
+        "source": "skills/security-audit/VALIDATION-AND-REPORTING.md",
+        "blob": "5e200d7387e665e53e0e4190fa4a5814c334c507",
+        "local": "skills/security-audit/VALIDATION-AND-REPORTING.md",
+        "sha256_lf": "3e166f0e42fd5ced07e2b20aa681a7ab8f67ea9cc19a211bd20f93516737a698",
+        "adapted": true
+      },
+      {
+        "source": "skills/security-audit/WEB-PROTOCOL-AND-AUTH.md",
+        "blob": "1a099fa575cf52a61e9a627f91b61015120fa517",
+        "local": "skills/security-audit/WEB-PROTOCOL-AND-AUTH.md",
+        "sha256_lf": "b77851741d81b2cc6ab410d6a5276222ed5efcddbb3d13e41437c2dede1dc09c",
+        "adapted": true
+      },
+      {
+        "source": "skills/security-audit/report-schema.json",
+        "blob": "55815a3687a45fff63d8ebf20068611bd6ad6d9a",
+        "local": "skills/security-audit/report-schema.json",
+        "sha256_lf": "6575c9de4a62255699ea052ebf9a49ebfb373a32891bcd89af6f55cc84b35519",
+        "adapted": false
+      },
+      {
+        "source": "skills/security-audit/validate-coverage-ledger.cjs",
+        "blob": "0ef58657bef18b26a92321df6c8e3d31bc8e6659",
+        "local": "skills/security-audit/validate-coverage-ledger.cjs",
+        "sha256_lf": "2eb280bd2e33c002916f86db9b29f9edfedb6454e5db973c766290465b868ac8",
+        "adapted": false
+      },
+      {
+        "source": "skills/security-audit/validate-coverage-ledger.test.cjs",
+        "blob": "b1444f57e1b021a61175733b8c356171861c8701",
+        "local": "skills/security-audit/validate-coverage-ledger.test.cjs",
+        "sha256_lf": "cfb9df26b03469a4279a70e7664a2a5434dd6f8c2c204e91f9b0aeb9dd71e648",
+        "adapted": false
+      },
+      {
+        "source": "skills/security-audit/validate-findings.cjs",
+        "blob": "2843feceddb7e30bf10d6e4f7bbe6640e4c57799",
+        "local": "skills/security-audit/validate-findings.cjs",
+        "sha256_lf": "e85f232e36bfac0f866f244da50376692d6b45c690beadcb00608b0e6c8b5283",
+        "adapted": false
+      },
+      {
+        "source": "skills/security-audit/validate-findings.test.cjs",
+        "blob": "8d245b226bbe2fdf28b46b3203b99c2824039d2d",
+        "local": "skills/security-audit/validate-findings.test.cjs",
+        "sha256_lf": "b92001117a92c4161d43777a0ba2fa182a8a4d97f2304cc8c0cee5331497b73b",
+        "adapted": false
+      }
+    ],
+    "security": "reviewed development tooling; no production authority",
+    "compatibility": "Linux validators; limited Windows support",
+    "update_available": false
+  }
+]

@@ -1,0 +1,48 @@
+name: Propose registered module update
+on:
+  repository_dispatch:
+    types: [oracle-module-merged]
+
+permissions:
+  contents: read
+
+jobs:
+  propose:
+    if: vars.ORACLE_MODULE_EVENT_ACTOR != '' && github.actor == vars.ORACLE_MODULE_EVENT_ACTOR
+    runs-on: ubuntu-24.04
+    concurrency:
+      group: module-update-${{ github.event.client_payload.module }}
+      cancel-in-progress: false
+    env:
+      MODULE: ${{ github.event.client_payload.module }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Resolve trusted registration before minting tokens
+        id: module
+        run: python3 -B tools/module_update.py registration "$MODULE"
+      - name: Obtain read-only access to this module
+        id: source
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3
+        with:
+          client-id: ${{ vars.ORACLE_MODULE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.ORACLE_MODULE_APP_PRIVATE_KEY }}
+          owner: eighred
+          repositories: ${{ steps.module.outputs.repository }}
+          permission-contents: read
+      - name: Obtain proposal permissions on Oracle only
+        id: parent
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3
+        with:
+          client-id: ${{ vars.ORACLE_MODULE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.ORACLE_MODULE_APP_PRIVATE_KEY }}
+          owner: eighred
+          repositories: oracle
+          permission-contents: write
+          permission-pull-requests: write
+      - name: Propose the current protected module revision
+        env:
+          MODULE_READ_TOKEN: ${{ steps.source.outputs.token }}
+          ORACLE_PR_TOKEN: ${{ steps.parent.outputs.token }}
+        run: python3 -B tools/module_update.py propose "$MODULE"

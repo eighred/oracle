@@ -1,0 +1,186 @@
+#!/usr/bin/env python3
+"""Validate the checkout-owned Oracle Forge plugin without external packages."""
+
+import argparse
+import json
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+PLUGIN = Path(__file__).resolve().parents[1]
+ROOT = PLUGIN.parents[2]
+MARKETPLACE = ROOT / ".agents/plugins/marketplace.json"
+MANIFEST = PLUGIN / ".codex-plugin/plugin.json"
+EXPECTED_SKILLS = {
+    "commands",
+    "engineering-standard",
+    "financial-verification",
+    "security-audit",
+    "issue-archaeology",
+    "oracle-verify",
+    "pr-delivery",
+    "stack-routing",
+    "repository-organization",
+}
+
+
+def fail(message: str) -> None:
+    raise ValueError(message)
+
+
+def local_path(base: Path, value: str) -> Path:
+    if not value.startswith("./") or ".." in Path(value).parts:
+        fail(f"unsafe plugin path: {value!r}")
+    resolved = (base / value).resolve()
+    if not resolved.is_relative_to(ROOT):
+        fail(f"plugin path escapes checkout: {value!r}")
+    return resolved
+
+
+def frontmatter(skill: Path) -> dict[str, str]:
+    lines = skill.read_text(encoding="utf-8-sig").splitlines()
+    if not lines or lines[0] != "---":
+        fail(f"missing frontmatter: {skill}")
+    try:
+        end = lines.index("---", 1)
+    except ValueError:
+        fail(f"unterminated frontmatter: {skill}")
+    fields = {}
+    for line in lines[1:end]:
+        if ":" in line:
+            key, value = line.split(":", 1)
+            fields[key.strip()] = value.strip().strip('"\'')
+    if not fields.get("name") or not fields.get("description"):
+        fail(f"name/description required: {skill}")
+    if len(fields["description"]) > 180 or "[TODO" in skill.read_text(encoding="utf-8-sig"):
+        fail(f"description too broad or unfinished scaffold: {skill}")
+    return fields
+
+
+def referenced_files(skill: Path, boundary: Path = PLUGIN) -> list[Path]:
+    text = skill.read_text(encoding="utf-8-sig")
+    references = []
+    for target in re.findall(r"\[[^\]]+\]\(([^)]+)\)", text):
+        if target.startswith(("https://", "http://", "#")):
+            continue
+        path = (skill.parent / target.split("#", 1)[0]).resolve()
+        if not path.is_relative_to(boundary) or not path.is_file():
+            fail(f"missing or escaping skill reference {target!r} in {skill}")
+        references.append(path)
+    return references
+
+
+def command_files() -> list[Path]:
+    """Reject broken Chat routes without pretending to execute an agent workflow."""
+    catalog_path = PLUGIN / "skills/commands/commands.json"
+    catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+    files = [catalog_path]
+    if not isinstance(catalog, dict) or not {
+            "/work", "/branches", "/ship", "/audit", "/secure", "/evolve",
+            "/plan", "/doctor", "/status", "/help"}.issubset(catalog):
+        fail("core native commands are missing")
+    for name, item in catalog.items():
+        if (not re.fullmatch(r"/[a-z-]+", name) or not isinstance(item, dict)
+                or item.get("target") not in {"optional", "required"}):
+            fail(f"invalid native command: {name}")
+        if ("mode" in item or not isinstance(item.get("workflow"), str) or not item["workflow"].strip()
+                or not isinstance(item.get("description"), str) or not item["description"].strip()):
+            fail(f"command must have a native workflow: {name}")
+        skills = item.get("skills", [])
+        if (not skills or not isinstance(skills, list)
+                or any(not isinstance(skill, str) or skill not in EXPECTED_SKILLS for skill in skills)):
+            fail(f"unknown or missing skill mapping: {name}")
+        for skill in skills:
+            path = PLUGIN / "skills" / skill / "SKILL.md"
+            if not path.is_file():
+                fail(f"missing mapped skill: {name} -> {skill}")
+            files.append(path)
+        # Catalog instruction paths must survive packaging too, even when the
+        # corresponding optional tool is not installed on this host.
+        for relative in re.findall(r"(?:references|scripts)/[A-Za-z0-9_./-]+\.(?:md|py)", item["workflow"]):
+            base = PLUGIN / "skills/commands" if relative.startswith("references/") else PLUGIN
+            path = (base / relative).resolve()
+            if not path.is_relative_to(PLUGIN) or not path.is_file():
+                fail(f"missing or escaping command reference: {name} -> {relative}")
+            files.append(path)
+    return files
+
+
+def tracked(paths: list[Path]) -> None:
+    required = {path.relative_to(ROOT).as_posix() for path in paths}
+    raw = subprocess.check_output(["git", "ls-files", "-z", "--", *sorted(required)], cwd=ROOT, timeout=30)
+    missing = required - set(raw.decode("utf-8").split("\0"))
+    if missing:
+        fail("required plugin files not tracked: " + ", ".join(sorted(missing)))
+
+
+def validate(check_tracked: bool) -> None:
+    marketplace = json.loads(MARKETPLACE.read_text(encoding="utf-8-sig"))
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8-sig"))
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", marketplace.get("name", "")):
+        fail("marketplace name is invalid")
+    entries = [p for p in marketplace.get("plugins", []) if p.get("name") == "oracle-forge"]
+    if len(entries) != 1:
+        fail("marketplace must contain exactly one oracle-forge entry")
+    entry = entries[0]
+    source = entry.get("source", {})
+    if source.get("source") != "local" or local_path(ROOT, source.get("path", "")) != PLUGIN:
+        fail("marketplace source does not resolve to the repository-owned plugin")
+    if entry.get("policy") != {"installation": "INSTALLED_BY_DEFAULT", "authentication": "ON_INSTALL"}:
+        fail("marketplace installation/authentication policy is incomplete")
+    if entry.get("category") != "Productivity":
+        fail("marketplace category is missing")
+    if manifest.get("name") != "oracle-forge" or not manifest.get("version"):
+        fail("plugin name/version is invalid")
+    if local_path(PLUGIN, manifest.get("skills", "")) != PLUGIN / "skills":
+        fail("manifest skills directory is incorrect")
+    for field in ("displayName", "shortDescription", "longDescription", "developerName"):
+        if not manifest.get("interface", {}).get(field):
+            fail(f"manifest interface.{field} is missing")
+    if (ROOT / "plugins/oracle-forge").exists():
+        fail("duplicate root plugin would compete with .agents authority")
+    skills = sorted((PLUGIN / "skills").glob("*/SKILL.md"))
+    names = {path.parent.name for path in skills}
+    if names != EXPECTED_SKILLS:
+        fail(f"skill inventory differs: {sorted(names ^ EXPECTED_SKILLS)}")
+    adapter = ROOT / ".agents/skills/oracle-forge/SKILL.md"
+    project_config = ROOT / ".codex/config.toml"
+    if frontmatter(adapter)["name"] != "oracle-forge":
+        fail("repository discovery adapter has the wrong name")
+    if '[plugins."oracle-forge@oracle-local"]\nenabled = true' not in project_config.read_text(encoding="utf-8"):
+        fail("trusted-project Forge enablement is missing")
+    files = [MARKETPLACE, MANIFEST, adapter, project_config, Path(__file__).resolve()]
+    files.extend(referenced_files(adapter, ROOT))
+    for skill in skills:
+        if frontmatter(skill)["name"] != skill.parent.name:
+            fail(f"skill name does not match its directory: {skill}")
+        files.append(skill)
+        files.extend(referenced_files(skill))
+    files.extend(command_files())
+    for document in PLUGIN.rglob("*.md"):
+        files.append(document)
+        files.extend(referenced_files(document, ROOT if document.parent == PLUGIN else PLUGIN))
+    agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8-sig")
+    if ".agents/plugins/oracle-forge/" not in agents:
+        fail("AGENTS.md does not point to the plugin authority")
+    files.extend([PLUGIN / "upstreams.json", *(PLUGIN / "scripts").glob("*.py")])
+    profiles = sorted((PLUGIN / "agents").glob("*.toml"))
+    if {p.stem for p in profiles} != {"oracle_mapper","oracle_reviewer","oracle_security"}:
+        fail("unexpected specialist profile inventory")
+    files.extend(profiles)
+    files = sorted(set(files))
+    if check_tracked:
+        tracked(files)
+    print(f"oracle-forge: {len(skills)} skills, {len(files)} required files, marketplace={marketplace['name']}: OK")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--tracked", action="store_true", help="require every referenced file in Git")
+    args = parser.parse_args()
+    try:
+        validate(args.tracked)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        print(f"oracle-forge: {exc}", file=sys.stderr)
+        sys.exit(1)

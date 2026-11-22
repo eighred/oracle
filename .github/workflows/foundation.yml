@@ -9,14 +9,22 @@ permissions:
   contents: read
 
 jobs:
+  forge:
+    uses: ./.github/workflows/oracle-forge.yml
   foundation:
+    needs: forge
+    if: always()
     name: oracle-ci-required
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - run: python3 -B .agents/plugins/oracle-forge/scripts/forge.py verify
+      - name: Require Forge checks
+        env:
+          FORGE_RESULT: ${{ needs.forge.result }}
+        run: test "$FORGE_RESULT" = success
+      - run: python3 -B tools/check_foundation.py verify
       - run: python3 -B -m unittest discover -s tests -v
   secrets:
     name: gitleaks
