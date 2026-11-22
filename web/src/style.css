@@ -726,3 +726,18 @@ dd {
   font-size: var(--text-caption);
   line-height: var(--leading-caption);
 }
+
+#discovery-search {
+  margin-inline-start: auto;
+  width: min(33vw, 440px);
+  min-width: 0;
+}
+@media (max-width: 760px) {
+  .toolbar:has(#discovery-search) .crumb {
+    display: none;
+  }
+  #discovery-search {
+    flex: 1;
+    width: auto;
+  }
+}

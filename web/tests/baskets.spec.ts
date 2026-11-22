@@ -148,7 +148,18 @@ test("direct discovery rankings lead to a saved template and server-sized risk",
     page.getByRole("link", { name: "Market listing update" }),
   ).toHaveAttribute("href", "https://www.okx.com/help/listing");
   await expect(page.locator("tbody tr").first()).toContainText("BETA/USDT");
-  await page.getByRole("button", { name: "Gainers", exact: true }).click();
+  const card = page.getByRole("button", { name: "Explore Top gainers" });
+  await expect(card).toContainText("ALPHA/USDT");
+  await expect(
+    page.getByRole("button", { name: "Explore Volume leaders" }),
+  ).toContainText("BETA/USDT");
+  await card.click();
+  await expect(
+    page.getByRole("heading", { name: "Spot markets" }),
+  ).toBeFocused();
+  await expect(
+    page.getByRole("button", { name: "Gainers", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("tbody tr")).toHaveCount(1);
   await page.getByRole("button", { name: "Losers", exact: true }).click();
   await page

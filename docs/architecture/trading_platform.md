@@ -1,5 +1,7 @@
 # Oracle baskets and trading platform
 
+The [consumer platform blueprint](consumer_platform.md) connects observed discovery and social interactions to Oracle page specifications, data contracts and the implementation roadmap.
+
 ## Research workstation
 
 | User action | Current behavior and authority |

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { apiFetch, native, signedIn } from "./api";
-import { computed, onMounted, onBeforeUnmount, ref } from "vue";
+import { computed, nextTick, onMounted, onBeforeUnmount, ref } from "vue";
 import Icon from "./Icon.vue";
 const emit = defineEmits<{ basket: [pair: string] }>();
 type Market = {
@@ -10,8 +10,16 @@ type Market = {
   volume: number;
   ts: number;
 };
-const rows = ref<Market[]>([]),
-  group = ref<"Popular" | "Gainers" | "Losers">("Popular");
+const categories = ["Popular", "Gainers", "Losers"] as const;
+type Category = (typeof categories)[number];
+const titles = {
+  Popular: "Volume leaders",
+  Gainers: "Top gainers",
+  Losers: "Top losers",
+};
+const rows = ref<Market[]>([]);
+const group = ref<Category>("Popular");
+const marketHeading = ref<HTMLHeadingElement>();
 const pending = ref(false),
   message = ref(""),
   clock = ref(Date.now());
@@ -46,19 +54,6 @@ const search = ref(""),
 const fresh = computed(() =>
   rows.value.filter((r) => clock.value - r.ts <= 300000),
 );
-const breadth = computed(() => {
-  const up = fresh.value.filter((r) => r.change > 0).length,
-    down = fresh.value.filter((r) => r.change < 0).length,
-    count = fresh.value.length;
-  return {
-    up,
-    down,
-    flat: count - up - down,
-    count,
-    upPct: count ? (up * 100) / count : 0,
-    downPct: count ? (down * 100) / count : 0,
-  };
-});
 type PublicBasket = {
   id: string;
   name: string;
@@ -88,26 +83,48 @@ async function loadCommunity() {
     shelfMessage.value = "Community baskets unavailable.";
   }
 }
-const ranked = computed(() => {
-  const mode = group.value;
-  return fresh.value
-    .filter((r) =>
-      r.pair.toLowerCase().includes(search.value.trim().toLowerCase()),
-    )
+function orderMarkets(markets: Market[], category: Category) {
+  return markets
     .filter(
       (r) =>
-        mode === "Popular" ||
-        (mode === "Gainers" ? r.change > 0 : r.change < 0),
+        category === "Popular" ||
+        (category === "Gainers" ? r.change > 0 : r.change < 0),
     )
     .sort(
       (a, b) =>
-        (mode === "Popular"
+        (category === "Popular"
           ? b.volume - a.volume
-          : mode === "Gainers"
+          : category === "Gainers"
             ? b.change - a.change
             : a.change - b.change) || a.pair.localeCompare(b.pair),
-    )
-    .slice(0, 25);
+    );
+}
+const rising = computed(() => fresh.value.filter((r) => r.change > 0).length);
+const falling = computed(() => fresh.value.filter((r) => r.change < 0).length);
+const leaders = computed(() =>
+  categories.map((category) => ({
+    category,
+    market: orderMarkets(fresh.value, category)[0],
+  })),
+);
+const ranked = computed(() => {
+  const query = search.value.trim().toLowerCase();
+  return orderMarkets(
+    fresh.value.filter((r) => r.pair.toLowerCase().includes(query)),
+    group.value,
+  ).slice(0, 25);
+});
+async function openRanking(category: Category) {
+  group.value = category;
+  section.value = "Markets";
+  search.value = "";
+  await nextTick();
+  marketHeading.value?.focus();
+  marketHeading.value?.scrollIntoView({ block: "start" });
+}
+const volumeFormat = new Intl.NumberFormat("en", {
+  notation: "compact",
+  maximumFractionDigits: 2,
 });
 async function refresh() {
   if (pending.value) return;
@@ -176,39 +193,46 @@ onBeforeUnmount(() => {
 });
 </script>
 <template>
+  <Teleport defer to="#discovery-search">
+    <label class="market-search"
+      ><span>Find a market</span
+      ><input
+        v-model="search"
+        type="search"
+        @input="section = 'Markets'"
+        placeholder="Search by coin or pair"
+    /></label>
+  </Teleport>
   <div class="market-workspace">
     <div class="market-center">
-      <section class="pulse" aria-label="24 hour market breadth">
-        <div>
-          <p class="source"><i />OKX SPOT <span> / </span> 24 HOURS</p>
-          <h2>Market pulse</h2>
-          <p class="pulse-value">
-            {{ breadth.count ? Math.round(breadth.upPct) + "%" : "—" }}
-            <small>advancing</small>
-          </p>
-          <div class="pulse-key">
-            <span
-              >Rising <b>{{ breadth.count ? breadth.up : "—" }}</b></span
-            ><span
-              >Falling <b>{{ breadth.count ? breadth.down : "—" }}</b></span
-            ><span
-              >Flat <b>{{ breadth.count ? breadth.flat : "—" }}</b></span
-            >
-          </div>
-        </div>
-        <div
-          class="pulse-ring"
-          aria-hidden="true"
-          :style="{
-            '--rise': breadth.upPct + '%',
-            '--moving': breadth.upPct + breadth.downPct + '%',
-          }"
+      <section class="spotlight" aria-label="Featured market rankings">
+        <button
+          v-for="{ category, market } in leaders"
+          :key="category"
+          class="cover"
+          :class="category.toLowerCase()"
+          :aria-label="'Explore ' + titles[category]"
+          @click="openRanking(category)"
         >
-          <div>
-            <strong>{{ breadth.count || "—" }}</strong
-            ><small>pairs</small>
-          </div>
-        </div>
+          <span class="cover-tag">OKX SPOT · 24H</span>
+          <span class="cover-copy">
+            <strong>{{ titles[category] }}</strong>
+            <span v-if="market"
+              >{{ market.pair }} ·
+              {{
+                category === "Popular"
+                  ? volumeFormat.format(market.volume) + " USDT"
+                  : (market.change > 0 ? "+" : "") +
+                    market.change.toFixed(2) +
+                    "%"
+              }}</span
+            >
+            <span v-else>{{
+              pending ? "Loading markets…" : "No recent leader"
+            }}</span>
+          </span>
+          <Icon name="ChevronRightMd" />
+        </button>
       </section>
       <nav class="market-sections" aria-label="Discovery sections">
         <button
@@ -225,7 +249,7 @@ onBeforeUnmount(() => {
         :class="{ chosen: section === 'Markets' }"
       >
         <div class="section-line">
-          <h2>Spot markets</h2>
+          <h2 ref="marketHeading" tabindex="-1">Spot markets</h2>
           <button
             class="tool"
             aria-label="Refresh markets"
@@ -235,16 +259,9 @@ onBeforeUnmount(() => {
             <Icon name="Regenerate" />
           </button>
         </div>
-        <label class="market-search"
-          ><span>Find a market</span
-          ><input
-            v-model="search"
-            type="search"
-            placeholder="Search by coin or pair"
-        /></label>
         <div class="filters" aria-label="Market rankings">
           <button
-            v-for="g in ['Popular', 'Gainers', 'Losers'] as const"
+            v-for="g in categories"
             :key="g"
             :aria-pressed="g === group"
             @click="group = g"
@@ -296,6 +313,10 @@ onBeforeUnmount(() => {
             </tr>
           </tbody>
         </table>
+        <p v-if="fresh.length" class="breadth-note">
+          OKX spot · {{ fresh.length }} fresh pairs · {{ rising }} rising ·
+          {{ falling }} falling · {{ fresh.length - rising - falling }} flat
+        </p>
       </section>
     </div>
     <aside class="market-rail" aria-label="Discovery feed">
@@ -310,7 +331,7 @@ onBeforeUnmount(() => {
         <a
           v-for="b in community"
           :key="b.id"
-          class="feed-item"
+          class="feed-item basket-entry"
           :href="'#baskets?id=' + b.id"
         >
           <span class="caption"
@@ -383,96 +404,96 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: var(--spacing-12);
 }
-.pulse {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  padding: clamp(18px, 3vw, 30px);
-  border-radius: var(--radius-lg);
-  border: 1px solid #314458;
-  background: linear-gradient(118deg, #101b29, #10151c 72%);
-  margin-bottom: 14px;
+.spotlight {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 20px;
 }
-.source,
-.pulse-key,
-.pulse-ring small,
+.cover {
+  position: relative;
+  min-width: 0;
+  min-height: clamp(235px, 22vw, 340px);
+  padding: clamp(12px, 1.3vw, 22px);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  background-color: var(--color-obsidian);
+  isolation: isolate;
+  color: white;
+}
+.cover::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(0deg, #05060af2, #07101817 72%),
+    var(--art) center 44% / cover;
+  transition: transform 0.2s ease-out;
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .cover:hover::before {
+    transform: scale(1.04);
+  }
+}
+.cover.popular {
+  --art: url("./assets/volume_leaders.webp");
+}
+.cover.gainers {
+  --art: url("./assets/top_gainers.webp");
+}
+.cover.losers {
+  --art: url("./assets/top_losers.webp");
+}
+.cover-tag {
+  font: 600 10px/1.5 var(--font-gtamericamono);
+  letter-spacing: 0.05em;
+  padding: 3px 8px;
+  background: #080809af;
+  border-radius: 12px;
+}
+.cover-copy {
+  display: grid;
+  gap: 5px;
+}
+.cover-copy strong {
+  font-size: clamp(19px, 2.25vw, 32px);
+  line-height: 1.08;
+  letter-spacing: -0.045em;
+}
+.cover-copy > span {
+  font: 12px/1.4 var(--font-gtamericamono);
+  color: #e4e8ed;
+}
+.cover > .icon {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  border-radius: 50%;
+  background: #080809aa;
+  padding: 3px;
+  width: 23px;
+  height: 23px;
+}
 .market-list td:not(:first-child) {
   font-family: var(--font-gtamericamono);
 }
-.source {
-  color: var(--signal);
-  font-size: 10px;
-  letter-spacing: 0.13em;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.market-workspace .panel {
+  background: var(--color-void);
+  box-shadow: none;
+  border-color: var(--color-graphite);
 }
-.source i {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--signal);
+.market-list .section-line h2 {
+  scroll-margin-top: 72px;
 }
-.source span {
-  color: var(--muted);
-}
-.pulse h2 {
-  font-size: 19px;
-  margin: 16px 0 1px;
-}
-.pulse-value {
-  font-size: clamp(32px, 3.5vw, 53px);
-  font-weight: 550;
-  letter-spacing: -0.06em;
-  line-height: 1.15;
-}
-.pulse-value small {
-  font-size: 14px;
-  color: var(--muted);
-  font-weight: 400;
-  letter-spacing: 0;
-}
-.pulse-key {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  font-size: 11px;
-  color: var(--muted);
-  margin-top: 16px;
-}
-.pulse-key b {
-  color: var(--eighred-white);
-}
-.pulse-ring {
-  flex: none;
-  width: clamp(80px, 9vw, 125px);
-  aspect-ratio: 1;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  background: conic-gradient(
-    var(--signal) var(--rise),
-    #537893 var(--rise) var(--moving),
-    #35404b var(--moving)
-  );
-}
-.pulse-ring div {
-  width: 84%;
-  height: 84%;
-  background: #101820;
-  display: grid;
-  align-content: center;
-  justify-items: center;
-  border-radius: 50%;
-}
-.pulse-ring strong {
-  font:
-    550 clamp(20px, 2.4vw, 34px) / 1.2 ui-monospace,
-    monospace;
-}
-.pulse-ring small {
-  color: var(--muted);
+.market-list tbody tr:hover,
+.basket-entry:hover {
+  background: var(--color-obsidian);
 }
 .market-list,
 .feed {
@@ -490,7 +511,11 @@ onBeforeUnmount(() => {
 }
 .market-search {
   display: block;
-  margin: 10px 0;
+}
+.breadth-note {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 12px;
 }
 .market-search span,
 .screen-reader {
@@ -504,9 +529,9 @@ onBeforeUnmount(() => {
   width: 100%;
   padding: 10px 12px;
   color: inherit;
-  background: var(--base);
+  background: var(--color-obsidian);
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 18px;
   font: inherit;
 }
 .filters,
@@ -642,8 +667,20 @@ onBeforeUnmount(() => {
   .ticker i {
     display: none;
   }
-  .pulse-key {
-    gap: 8px;
+  .spotlight {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    padding: 3px;
+    margin: 0 -3px 12px;
+  }
+  .cover {
+    flex: 0 0 78%;
+    min-height: 208px;
+    scroll-snap-align: center;
+  }
+  .cover-copy strong {
+    font-size: 26px;
   }
 }
 </style>

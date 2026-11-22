@@ -257,6 +257,7 @@ onBeforeUnmount(() => {
         <Icon name="ChevronRightMd" /><span class="current">{{
           view.title
         }}</span>
+        <div v-if="view.id === 'discover'" id="discovery-search"></div>
         <button v-if="native && signedIn" class="session-exit" @click="signOut">
           Sign out
         </button>

@@ -43,7 +43,7 @@ python3 ../core/crates/report_api/tools/local_pilot.py \
 The harness exercises publication, immutable retrieval, two principals on the same server connection, transaction scope cleanup, direct PostgreSQL row policies, expiry and revocation. It restores a database backup and compares authorized response bytes and denied access. Browser checks cover the published NAV, selected strategy, fees, benchmark, report digest, downloads, keyboard operation and a 375 px viewport. Loading and service-error rendering use synthetic HTTP responses. The historical portfolio view has no live subscription or execution entrypoint.
 ## Consumer app
 
-The default entry opens Discover. The market pulse summarizes fresh OKX spot pairs, search covers the whole eligible universe, and the community shelf lists public basket templates in participation order with curator pins first. The three primary mobile destinations are Discover, Baskets and Wallet. The operator workspace remains available at `/#overview`. [Design reference](DESIGN.md)
+The default entry opens Discover. The illustrated discovery cards open rankings by volume, positive change or negative change across fresh OKX spot pairs, search covers the whole eligible universe, and the community shelf lists public basket templates in participation order with curator pins first. The three primary mobile destinations are Discover, Baskets and Wallet. The operator workspace remains available at `/#overview`. [Design reference](DESIGN.md)
 
 The manifest supports standalone installation from a secure web origin. The service worker handles an offline navigation with a reconnect screen. Portfolio balances, account data and financial actions use the network. All device shells load the same packaged Vue and TypeScript assets.
 
