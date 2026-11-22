@@ -34,6 +34,18 @@ jobs:
           cargo test --locked --workspace
           python3 crates/portfolio_replay/tests/risk_reference.py
           python3 crates/backtest/tests/accounting_reference.py
+          cargo build --locked -p oracle-report-api
+      - name: Verify the Vue workstation, scoped PostgreSQL reads and restore
+        working-directory: web
+        run: |
+          npm ci --ignore-scripts
+          npm run build
+          npx --no-install playwright install --with-deps chromium
+          pg_bin=$(dirname "$(find /usr/lib/postgresql -path '*/bin/initdb' | sort -V | tail -1)")
+          test -x "$pg_bin/initdb"
+          python3 ../core/crates/report_api/tools/local_pilot.py \
+            --pg-bin "$pg_bin" --api-bin ../core/target/debug/oracle-report-api \
+            --dist dist --port 0 --check npm run test:browser
   secrets:
     name: gitleaks
     runs-on: ubuntu-24.04

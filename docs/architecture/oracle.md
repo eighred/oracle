@@ -103,6 +103,8 @@ Research workers consume a versioned immutable extract with a schema and digest.
 
 ## Original Vue workstation and chart datafeed
 
+Use the owner's Eighred palette across the workstation and chart legends. The [shared color tokens](../../web/src/style.css) record the flat sRGB colors sampled from the approved visual reference. Preserve the black ground, white and gray text, and pink, blue, teal, green and orange accents. Pair colored data series with names, line treatments and readable settlement values.
+
 The primary route is portfolio selection → dated overview → risk run → strategy comparison → fill, price and posting detail. Keep the selected portfolio, as-of time, base currency, benchmark and data-quality state visible as the operator drills down. A stale timestamp remains visible after reconnection until gaps are reconciled. Distinguish a zero position, a pending calculation, an incomplete result and a denied request. Provide table equivalents for visual information, keyboard navigation, focus restoration, reduced motion and a narrow-screen layout.
 
 | Read surface | Minimum request and response | Test through the actual browser |

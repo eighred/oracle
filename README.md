@@ -6,6 +6,8 @@ Start with the [architecture and quantitative charter](docs/architecture/oracle.
 
 ## Local development
 
+Open the [Vue portfolio workstation](web/README.md) to inspect the dated portfolio, compare strategy outcomes and trace a loss to price, fees and ledger postings.
+
 Run `cargo run --locked -p oracle-backtest` from `core/` for the held-out BTC/USDT comparison. The [backtest guide](core/crates/backtest/README.md) identifies the benchmark, fill clock, costs and independent ledger checks.
 
 The financial core lives in `core/`. Its first command replays a dated synthetic BTC/USDT portfolio with exact arithmetic. From `core/`, run `cargo run --locked -p oracle-portfolio-replay -- 1767225660000 1767225660100`. The [spot replay guide](core/crates/portfolio_replay/README.md) explains the two cutoffs, source provenance, correction and missing-price behavior. The [market adapter guide](core/crates/market_data/README.md) covers the read-only CCXT command and offline HTTP verification.
