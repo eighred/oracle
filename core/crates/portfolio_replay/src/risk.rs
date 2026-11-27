@@ -5,6 +5,7 @@ use oracle_spot_amount::Amount;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 pub mod basket;
+pub mod forecast;
 
 const HISTORY: &[u8] = include_bytes!("../fixtures/daily_risk_index.json");
 const DAY: u64 = 86_400_000;
@@ -56,12 +57,17 @@ enum Coverage {
     Complete {
         sample_size: usize,
         scenarios: Vec<Scenario>,
-        value_at_risk: String,
+        #[serde(serialize_with = "serialize_rational")]
+        value_at_risk: BigRational,
         expected_shortfall: String,
     },
     Incomplete {
         reason: &'static str,
     },
+}
+
+fn serialize_rational<S: serde::Serializer>(value: &BigRational, s: S) -> Result<S::Ok, S::Error> {
+    s.collect_str(value)
 }
 
 /// Probability weights in observation order, splitting the mass at VaR equally among ties.
@@ -152,7 +158,7 @@ fn evaluate(snapshot: &Snapshot, history: &IndexHistory, confidence: u16) -> Cov
     Coverage::Complete {
         sample_size: losses.len(),
         scenarios,
-        value_at_risk: var.to_string(),
+        value_at_risk: var,
         expected_shortfall: es.to_string(),
     }
 }
